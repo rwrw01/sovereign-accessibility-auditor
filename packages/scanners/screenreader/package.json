@@ -1,0 +1,23 @@
+{
+  "name": "@saa/scanner-screenreader",
+  "version": "0.1.0",
+  "private": true,
+  "license": "EUPL-1.2",
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc --build",
+    "dev": "tsx watch src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo 'no lint configured yet'",
+    "test": "echo 'no tests configured yet'"
+  },
+  "dependencies": {
+    "@saa/shared": "*"
+  },
+  "devDependencies": {
+    "typescript": "5.8.3",
+    "tsx": "4.19.4",
+    "@types/node": "20.17.57"
+  }
+}

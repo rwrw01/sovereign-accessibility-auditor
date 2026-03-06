@@ -1,0 +1,25 @@
+{
+  "name": "@saa/dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "license": "EUPL-1.2",
+  "scripts": {
+    "build": "next build",
+    "dev": "next dev --port 3000",
+    "typecheck": "tsc --noEmit",
+    "lint": "next lint",
+    "test": "echo 'no tests configured yet'"
+  },
+  "dependencies": {
+    "@saa/shared": "*",
+    "next": "15.5.12",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  },
+  "devDependencies": {
+    "typescript": "5.8.3",
+    "@types/node": "20.17.57",
+    "@types/react": "19.1.6",
+    "@types/react-dom": "19.1.6"
+  }
+}

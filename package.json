@@ -1,0 +1,41 @@
+{
+  "name": "sovereign-accessibility-auditor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Open-source WCAG 2.1 AA audit platform for Dutch municipalities",
+  "license": "EUPL-1.2",
+  "author": "Athide.nl",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rwrw01/sovereign-accessibility-auditor.git"
+  },
+  "packageManager": "npm@11.11.0",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "workspaces": [
+    "packages/api",
+    "packages/dashboard",
+    "packages/scanners/*",
+    "packages/shared"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "test:e2e": "turbo run test:e2e",
+    "typecheck": "turbo run typecheck",
+    "db:generate": "npm run db:generate --workspace=packages/api",
+    "db:migrate": "npm run db:migrate --workspace=packages/api",
+    "audit:deps": "npm audit --audit-level=high",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md,yml,yaml}\""
+  },
+  "devDependencies": {
+    "turbo": "2.5.4",
+    "typescript": "5.8.3",
+    "prettier": "3.5.3",
+    "@types/node": "20.17.57"
+  }
+}

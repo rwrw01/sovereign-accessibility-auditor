@@ -1,0 +1,62 @@
+# Docker Compose — lokale ontwikkeling
+# Alleen PostgreSQL + Valkey voor Fase 0
+# Scanner-containers worden per fase toegevoegd
+
+services:
+  postgres:
+    image: postgres:16.8-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: saa
+      POSTGRES_USER: saa
+      POSTGRES_PASSWORD: saa_dev_password
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - db-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U saa -d saa"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=64m
+      - /run/postgresql:noexec,nosuid,size=16m
+    security_opt:
+      - no-new-privileges:true
+
+  valkey:
+    image: valkey/valkey:8.1-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - valkey-data:/data
+    networks:
+      - redis-net
+    command: ["valkey-server", "--maxmemory", "256mb", "--maxmemory-policy", "noeviction"]
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=16m
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  postgres-data:
+  valkey-data:
+
+networks:
+  db-net:
+    driver: bridge
+    internal: true
+  redis-net:
+    driver: bridge
+    internal: true

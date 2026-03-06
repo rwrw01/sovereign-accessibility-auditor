@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+.pnp.*
+
+# Build output
+dist/
+.next/
+out/
+build/
+*.tsbuildinfo
+
+# Turbo
+.turbo/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test
+coverage/
+test-results/
+playwright-report/
+
+# Docker
+docker-data/
+
+# Temporary
+tmp/
+*.tmp
+*.log

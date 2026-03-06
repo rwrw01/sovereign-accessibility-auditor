@@ -1,0 +1,76 @@
+publiccodeYmlVersion: "0.4"
+name: Sovereign Accessibility Auditor
+url: "https://github.com/rwrw01/sovereign-accessibility-auditor"
+releaseDate: "2026-03-06"
+developmentStatus: concept
+softwareType: standalone/web
+platforms:
+  - web
+  - linux
+
+description:
+  nl:
+    localisedName: Sovereign Accessibility Auditor
+    shortDescription: >-
+      Open-source WCAG 2.1 AA audit-platform voor Nederlandse gemeenten
+    longDescription: >-
+      De Sovereign Accessibility Auditor (SAA) is een soeverein,
+      open-source toegankelijkheidsaudit-platform ontworpen voor
+      Nederlandse gemeenten. Het combineert 7 geautomatiseerde
+      testlagen om WCAG 2.1 AA-dekking te verhogen van ~30%
+      (huidige tooling) naar ~65%. Het platform volgt de Common
+      Ground 5-lagenarchitectuur en is volledig zelf te hosten
+      zonder vendor lock-in.
+    features:
+      - Multi-engine WCAG scanner (Pa11y + axe-core + IBM Equal Access)
+      - Visuele regressietests (reflow, zoom, text-spacing)
+      - Toetsenbord- en focustests
+      - Accessibility tree vergelijking
+      - Touch target meting
+      - Screenreader simulatie
+      - Cognitieve toegankelijkheidsanalyse (Ollama + Gemma 3)
+      - NL Design System dashboard
+      - DOCX/PDF/JSON/CSV rapportage
+
+legal:
+  license: EUPL-1.2
+  mainCopyrightOwner: Athide.nl
+  repoOwner: Athide.nl
+
+maintenance:
+  type: internal
+  contacts:
+    - name: Athide.nl
+      email: info@athide.nl
+
+categories:
+  - accessibility
+  - compliance
+  - web-development
+
+intendedAudience:
+  countries:
+    - nl
+  scope:
+    - government
+    - local-government
+
+localisation:
+  localisationReady: true
+  availableLanguages:
+    - nl
+
+dependsOn:
+  open:
+    - name: Node.js
+      versionMin: "20.0.0"
+      optional: false
+    - name: PostgreSQL
+      versionMin: "16"
+      optional: false
+    - name: Valkey
+      versionMin: "8.0"
+      optional: false
+    - name: Docker
+      versionMin: "27.0"
+      optional: false
