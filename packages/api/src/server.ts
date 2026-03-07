@@ -5,6 +5,8 @@ import rateLimit from "@fastify/rate-limit";
 import { scanRoutes } from "./routes/scan.js";
 import { visualRegressionRoutes } from "./routes/visual-regression.js";
 import { behavioralRoutes } from "./routes/behavioral.js";
+import { a11yTreeRoutes } from "./routes/a11y-tree.js";
+import { touchTargetsRoutes } from "./routes/touch-targets.js";
 
 const envToLogger: Record<string, object | boolean> = {
   development: {
@@ -57,6 +59,8 @@ server.get("/api/v1/health", async () => {
 await server.register(scanRoutes);
 await server.register(visualRegressionRoutes);
 await server.register(behavioralRoutes);
+await server.register(a11yTreeRoutes);
+await server.register(touchTargetsRoutes);
 
 const start = async (): Promise<void> => {
   const host = process.env["HOST"] ?? "127.0.0.1";

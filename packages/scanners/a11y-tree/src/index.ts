@@ -1,5 +1,4 @@
-// @saa/scanner-a11y-tree — placeholder
-// Scanner implementation will be added in the corresponding phase
-
-export const SCANNER_NAME = "a11y-tree";
-export const SCANNER_VERSION = "0.1.0";
+export { runScan, getBrowser, closeBrowser } from "./orchestrator.js";
+export { createWorker } from "./worker.js";
+export { captureA11yTree, captureInterestingA11yTree, countNodes, findNodesByRole } from "./snapshot.js";
+export { diffA11yTrees } from "./diff.js";

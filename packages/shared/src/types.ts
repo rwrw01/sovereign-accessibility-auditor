@@ -187,3 +187,87 @@ export interface L3ScanJobResult {
   testResults: BehavioralTestResult[];
   totalDurationMs: number;
 }
+
+// ── L4 A11y Tree Diff Types ──
+
+export interface A11yTreeNode {
+  role: string;
+  name: string;
+  children?: A11yTreeNode[];
+  level?: number;
+  checked?: boolean | "mixed";
+  disabled?: boolean;
+  expanded?: boolean;
+  selected?: boolean;
+  value?: string;
+}
+
+export interface A11yTreeDiffFinding {
+  type: IssueType;
+  wcagCriteria: string[];
+  wcagLevel: WcagLevel;
+  diffType: "missing-role" | "missing-landmark" | "missing-name" | "structural-change" | "orientation-issue";
+  role: string;
+  name: string;
+  context: string;
+  message: string;
+  impact: "critical" | "serious" | "moderate" | "minor";
+  viewport: string;
+}
+
+export interface A11yTreeDiffResult {
+  comparison: string;
+  findings: A11yTreeDiffFinding[];
+  desktopNodeCount: number;
+  mobileNodeCount: number;
+  durationMs: number;
+  error: string | null;
+}
+
+export interface L4ScanJobPayload {
+  scanId: string;
+  auditId: string;
+  url: string;
+  desktopViewport: Viewport;
+  mobileViewport: Viewport;
+}
+
+export interface L4ScanJobResult {
+  scanId: string;
+  findings: A11yTreeDiffFinding[];
+  comparisons: A11yTreeDiffResult[];
+  totalDurationMs: number;
+}
+
+// ── L5 Touch Targets Types ──
+
+export interface TouchTargetFinding {
+  type: IssueType;
+  wcagCriteria: string[];
+  wcagLevel: WcagLevel;
+  selector: string;
+  tagName: string;
+  text: string;
+  width: number;
+  height: number;
+  minRequired: number;
+  context: string;
+  message: string;
+  impact: "critical" | "serious" | "moderate" | "minor";
+}
+
+export interface L5ScanJobPayload {
+  scanId: string;
+  auditId: string;
+  url: string;
+  viewport: Viewport;
+  minTargetSize: number;
+}
+
+export interface L5ScanJobResult {
+  scanId: string;
+  findings: TouchTargetFinding[];
+  totalElements: number;
+  failingElements: number;
+  totalDurationMs: number;
+}
