@@ -1,8 +1,8 @@
 # Sovereign Accessibility Auditor (SAA)
 
-**Open-source WCAG 2.1 AA audit-platform voor Nederlandse gemeenten**
+**Open-source WCAG 2.2 AA audit-platform voor Nederlandse gemeenten**
 
-De Sovereign Accessibility Auditor (SAA) is een soeverein, zelf te hosten toegankelijkheidsaudit-platform. Het combineert 7 geautomatiseerde testlagen om de WCAG 2.1 AA-dekking te verhogen van ~30% (huidige tooling) naar ~65%.
+De Sovereign Accessibility Auditor (SAA) is een soeverein, zelf te hosten toegankelijkheidsaudit-platform. Het combineert 7 geautomatiseerde testlagen om de WCAG 2.2 AA-dekking te verhogen van ~30% (huidige tooling) naar ~65%.
 
 ## Kenmerken
 

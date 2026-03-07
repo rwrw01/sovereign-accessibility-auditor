@@ -8,12 +8,12 @@
 
 ## 1. Visie en Doel
 
-De Sovereign Accessibility Auditor (SAA) is een open-source, soeverein toegankelijkheidsaudit-platform voor Nederlandse gemeenten. Het combineert 7 geautomatiseerde testlagen om WCAG 2.1 AA-dekking te verhogen van ~30% (huidige tooling) naar ~65%.
+De Sovereign Accessibility Auditor (SAA) is een open-source, soeverein toegankelijkheidsaudit-platform voor Nederlandse gemeenten. Het combineert 7 geautomatiseerde testlagen om WCAG 2.2 AA-dekking te verhogen van ~30% (huidige tooling) naar ~65%.
 
 **Kernprincipes:**
 - Soeverein: volledig zelf te hosten, geen vendor lock-in
 - Veilig: OWASP Top 10, Defense in Depth, BIO-compliant
-- Toegankelijk: het platform zelf voldoet aan WCAG 2.1 AA (dogfooding)
+- Toegankelijk: het platform zelf voldoet aan WCAG 2.2 AA (dogfooding)
 - Open: EUPL-1.2 licentie, Common Ground componentencatalogus
 - Bruikbaar: NL Design System, Nielsen heuristieken, B1 taalniveau
 
@@ -439,7 +439,7 @@ services:
 
 | Taak | Deliverable | Criterium |
 |------|-------------|-----------|
-| Dashboard layout | Next.js App Router + NL Design System | Responsive, WCAG 2.1 AA compliant |
+| Dashboard layout | Next.js App Router + NL Design System | Responsive, WCAG 2.2 AA compliant |
 | Audit-overzicht pagina | Lijst van audits met status/scores | Sorteerbaar, filterbaar |
 | Audit-detail pagina | Per audit: issues per laag, per pagina, per viewport | Drill-down naar individuele issues |
 | Scan starten flow | Formulier: URLs invoeren, viewports kiezen, scan starten | Inline validatie, bevestigingsdialoog |
@@ -662,7 +662,7 @@ Alles hierboven, plus:
 | Integration tests | Vitest + testcontainers | API + database + Redis |
 | E2E tests | Playwright | Dashboard user flows (happy + bad flows) |
 | Security tests | `npm audit`, SAST (CodeQL) | Elke PR |
-| Dogfood test | SAA scant zichzelf | Dashboard WCAG 2.1 AA = 0 critical |
+| Dogfood test | SAA scant zichzelf | Dashboard WCAG 2.2 AA = 0 critical |
 | Performance | k6 | API endpoints: <200ms p95 |
 
 ### 9.2 E2E Test Scenarios (Playwright)
