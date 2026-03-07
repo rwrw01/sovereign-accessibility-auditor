@@ -106,3 +106,42 @@ export interface ScanJobResult {
   engineResults: EngineResult[];
   totalDurationMs: number;
 }
+
+// ── L2 Visual Regression Scanner Types ──
+
+export type VisualScenario = "reflow" | "zoom-200" | "text-spacing";
+
+export interface VisualRegressionFinding {
+  scenario: VisualScenario;
+  type: IssueType;
+  wcagCriteria: string[];
+  wcagLevel: WcagLevel;
+  selector: string;
+  context: string;
+  message: string;
+  impact: "critical" | "serious" | "moderate" | "minor";
+  diffPercentage: number | null;
+}
+
+export interface ScenarioResult {
+  scenario: VisualScenario;
+  findings: VisualRegressionFinding[];
+  diffPercentage: number | null;
+  durationMs: number;
+  error: string | null;
+}
+
+export interface L2ScanJobPayload {
+  scanId: string;
+  auditId: string;
+  url: string;
+  viewport: Viewport;
+  scenarios: VisualScenario[];
+}
+
+export interface L2ScanJobResult {
+  scanId: string;
+  findings: VisualRegressionFinding[];
+  scenarioResults: ScenarioResult[];
+  totalDurationMs: number;
+}
