@@ -1,0 +1,46 @@
+# Git
+.git
+.gitignore
+
+# Node
+node_modules
+npm-debug.log*
+
+# Build artifacts
+dist
+.turbo
+.next
+.cache
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Documentation
+docs/
+*.md
+!README.md
+LICENSE
+
+# Tests
+*.test.ts
+*.spec.ts
+__tests__/
+coverage/
+
+# Claude
+.claude/
+
+# GitHub
+.github/
+
+# OS
+.DS_Store
+Thumbs.db

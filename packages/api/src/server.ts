@@ -40,8 +40,17 @@ await server.register(helmet, {
       frameAncestors: ["'none'"],
       baseUri: ["'self'"],
       formAction: ["'self'"],
+      upgradeInsecureRequests: [],
     },
   },
+  referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+  hsts: { maxAge: 63072000, includeSubDomains: true, preload: true },
+});
+
+// Additional security headers
+server.addHook("onSend", async (_request, reply) => {
+  reply.header("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()");
+  reply.header("X-Permitted-Cross-Domain-Policies", "none");
 });
 
 await server.register(cors, {
