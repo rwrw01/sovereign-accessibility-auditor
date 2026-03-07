@@ -271,3 +271,100 @@ export interface L5ScanJobResult {
   failingElements: number;
   totalDurationMs: number;
 }
+
+// ── L6 Screenreader Simulation Types ──
+
+export type ScreenreaderCheck =
+  | "heading-order"
+  | "landmark-coverage"
+  | "aria-live"
+  | "alt-text"
+  | "form-labels";
+
+export interface ScreenreaderFinding {
+  check: ScreenreaderCheck;
+  type: IssueType;
+  wcagCriteria: string[];
+  wcagLevel: WcagLevel;
+  selector: string;
+  context: string;
+  message: string;
+  impact: "critical" | "serious" | "moderate" | "minor";
+  confidence: number;
+}
+
+export interface ScreenreaderCheckResult {
+  check: ScreenreaderCheck;
+  findings: ScreenreaderFinding[];
+  durationMs: number;
+  error: string | null;
+}
+
+export interface L6ScanJobPayload {
+  scanId: string;
+  auditId: string;
+  url: string;
+  viewport: Viewport;
+  checks: ScreenreaderCheck[];
+}
+
+export interface L6ScanJobResult {
+  scanId: string;
+  findings: ScreenreaderFinding[];
+  checkResults: ScreenreaderCheckResult[];
+  totalDurationMs: number;
+}
+
+// ── L7 Cognitive Analysis Types ──
+
+export type CognitiveCheck =
+  | "readability"
+  | "jargon"
+  | "llm-analysis";
+
+export interface ReadabilityScore {
+  fleschDouma: number;
+  lix: number;
+  wordCount: number;
+  sentenceCount: number;
+  avgWordsPerSentence: number;
+  avgSyllablesPerWord: number;
+  level: string;
+}
+
+export interface CognitiveFinding {
+  check: CognitiveCheck;
+  type: IssueType;
+  wcagCriteria: string[];
+  wcagLevel: WcagLevel;
+  selector: string;
+  context: string;
+  message: string;
+  impact: "critical" | "serious" | "moderate" | "minor";
+  confidence: number;
+}
+
+export interface CognitiveCheckResult {
+  check: CognitiveCheck;
+  findings: CognitiveFinding[];
+  readabilityScore?: ReadabilityScore;
+  durationMs: number;
+  error: string | null;
+}
+
+export interface L7ScanJobPayload {
+  scanId: string;
+  auditId: string;
+  url: string;
+  viewport: Viewport;
+  checks: CognitiveCheck[];
+  ollamaUrl?: string;
+}
+
+export interface L7ScanJobResult {
+  scanId: string;
+  findings: CognitiveFinding[];
+  checkResults: CognitiveCheckResult[];
+  readabilityScore?: ReadabilityScore;
+  totalDurationMs: number;
+}

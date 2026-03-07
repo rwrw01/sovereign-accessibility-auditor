@@ -7,6 +7,8 @@ import { visualRegressionRoutes } from "./routes/visual-regression.js";
 import { behavioralRoutes } from "./routes/behavioral.js";
 import { a11yTreeRoutes } from "./routes/a11y-tree.js";
 import { touchTargetsRoutes } from "./routes/touch-targets.js";
+import { screenreaderRoutes } from "./routes/screenreader.js";
+import { cognitiveRoutes } from "./routes/cognitive.js";
 
 const envToLogger: Record<string, object | boolean> = {
   development: {
@@ -61,6 +63,8 @@ await server.register(visualRegressionRoutes);
 await server.register(behavioralRoutes);
 await server.register(a11yTreeRoutes);
 await server.register(touchTargetsRoutes);
+await server.register(screenreaderRoutes);
+await server.register(cognitiveRoutes);
 
 const start = async (): Promise<void> => {
   const host = process.env["HOST"] ?? "127.0.0.1";
