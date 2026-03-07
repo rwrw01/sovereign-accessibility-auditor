@@ -2,128 +2,92 @@
 
 **Open-source WCAG 2.2 AA audit-platform voor Nederlandse gemeenten**
 
-De Sovereign Accessibility Auditor (SAA) is een soeverein, zelf te hosten toegankelijkheidsaudit-platform. Het combineert 7 geautomatiseerde testlagen om de WCAG 2.2 AA-dekking te verhogen van ~30% (huidige tooling) naar ~65%.
+Combineert 7 geautomatiseerde testlagen om WCAG 2.2 AA-dekking te verhogen van ~30% (huidige tooling) naar ~65%. Volledig zelf te hosten, geen vendor lock-in.
 
-## Kenmerken
+## Scan-lagen
 
-- **Multi-engine scanning**: Pa11y, axe-core en IBM Equal Access draaien parallel met cross-engine deduplicatie
-- **Visuele regressie**: Automatische tests voor reflow (320px), zoom (200%) en text-spacing
-- **Gedragstests**: Toetsenbordnavigatie, focus traps, hover/focus content
-- **Accessibility tree diff**: Desktop vs. mobiel structuurvergelijking
-- **Touch target meting**: Detectie van elementen kleiner dan 44x44px
-- **Screenreader simulatie**: Virtual screenreader met confidence scoring
-- **Cognitieve analyse**: B1-taalniveaucheck via Ollama + Gemma 3, Flesch-Douma index, jargondetectie
-- **NL Design System**: Dashboard conform overheids design standaarden
-- **Soeverein**: Volledig zelf te hosten, geen vendor lock-in, geen cloud-afhankelijkheid
+| Laag | Functie | Technologie |
+|------|---------|-------------|
+| L1 | Multi-engine WCAG scan | axe-core + IBM Equal Access |
+| L2 | Visuele regressie | Reflow (320px), zoom (200%), text-spacing |
+| L3 | Gedragstests | Toetsenbord, focus traps, hover/focus content |
+| L4 | Accessibility tree diff | Desktop vs. mobiel structuurvergelijking |
+| L5 | Touch target meting | Detectie < 44x44px elementen |
+| L6 | Screenreader simulatie | DOM-analyse met confidence scoring |
+| L7 | Cognitieve analyse | Flesch-Douma, jargondetectie, Ollama + Gemma 3 |
 
 ## Architectuur
 
-Het platform volgt de [Common Ground](https://commonground.nl/) 5-lagenarchitectuur:
+[Common Ground](https://commonground.nl/) 5-lagenmodel:
 
 ```
-Interactie    → Next.js dashboard + NL Design System
-Proces        → BullMQ scan-orchestratie op Valkey
+Interactie    → Next.js 15 dashboard + NL Design System
+Proces        → BullMQ scan-orchestratie op Valkey 8.1
 Integratie    → Traefik API gateway + OpenAPI 3.x
-Services      → 7 geïsoleerde scan-microservices
+Services      → 7 geïsoleerde scan-microservices (Fastify 5)
 Data          → PostgreSQL 16 (encrypted at rest)
 ```
 
+Elke scanner draait in een eigen Docker network met SSRF blocklist. Geen inter-scanner communicatie, geen directe database-toegang.
+
 ## Snel starten
-
-### Vereisten
-
-- [Docker](https://docs.docker.com/get-docker/) 27+
-- [Docker Compose](https://docs.docker.com/compose/) v2+
-- [Node.js](https://nodejs.org/) 20 LTS+
-- [npm](https://www.npmjs.com/) 10+
-
-### Installatie
 
 ```bash
 git clone https://github.com/rwrw01/sovereign-accessibility-auditor.git
 cd sovereign-accessibility-auditor
 npm install
-```
 
-### Ontwikkelen
-
-```bash
 # Start PostgreSQL + Valkey
 docker compose up -d
 
-# Start alle services in dev-modus
+# Ontwikkelen
 npm run dev
-```
 
-### Testen
-
-```bash
-npm run test          # Unit + integration tests
-npm run test:e2e      # Playwright E2E tests
-npm run audit:deps    # Dependency security audit
+# Testen
+npm run test
+npm run audit:deps
 ```
 
 ## Projectstructuur
 
 ```
-sovereign-accessibility-auditor/
-├── packages/
-│   ├── api/                    # Fastify REST API
-│   ├── dashboard/              # Next.js frontend
-│   ├── shared/                 # Gedeelde types en utilities
-│   └── scanners/               # 7 scan-microservices
-│       ├── multi-engine/       # L1: Pa11y + axe-core + IBM
-│       ├── visual-regression/  # L2: Screenshot diff
-│       ├── behavioral/         # L3: Keyboard/focus tests
-│       ├── a11y-tree/          # L4: Accessibility tree diff
-│       ├── touch-targets/      # L5: Touch target meting
-│       ├── screenreader/       # L6: Virtual screenreader
-│       └── cognitive/          # L7: Ollama + Gemma 3
-├── docker-compose.yml          # Lokale ontwikkeling
-├── publiccode.yml              # Common Ground catalogus
-└── docs/                       # Documentatie
+packages/
+├── api/                    Fastify REST API
+├── dashboard/              Next.js 15 frontend
+├── shared/                 Gedeelde types en utilities
+└── scanners/
+    ├── multi-engine/       L1: axe-core + IBM Equal Access
+    ├── visual-regression/  L2: Screenshot diff
+    ├── behavioral/         L3: Keyboard/focus tests
+    ├── a11y-tree/          L4: Accessibility tree diff
+    ├── touch-targets/      L5: Touch target meting
+    ├── screenreader/       L6: Virtual screenreader
+    └── cognitive/          L7: Ollama + Gemma 3
 ```
 
 ## Hergebruikte software
 
-| Component | Versie | Licentie | Link |
-|-----------|--------|----------|------|
-| [Next.js](https://nextjs.org/) | 15.5.12 | MIT | [GitHub](https://github.com/vercel/next.js) |
-| [NL Design System (Utrecht)](https://nl-design-system.github.io/utrecht/) | latest stable | EUPL-1.2 | [GitHub](https://github.com/nl-design-system/utrecht) |
-| [Fastify](https://fastify.dev/) | 5.8.1 | MIT | [GitHub](https://github.com/fastify/fastify) |
-| [Drizzle ORM](https://orm.drizzle.team/) | 0.44.x | Apache-2.0 | [GitHub](https://github.com/drizzle-team/drizzle-orm) |
-| [BullMQ](https://bullmq.io/) | 5.x | MIT | [GitHub](https://github.com/taskforcesh/bullmq) |
-| [Playwright](https://playwright.dev/) | 1.49.x | Apache-2.0 | [GitHub](https://github.com/microsoft/playwright) |
-| [Pa11y](https://pa11y.org/) | 8.0.0 | LGPL-3.0 | [GitHub](https://github.com/pa11y/pa11y) |
-| [@axe-core/playwright](https://www.deque.com/axe/) | 4.x | MPL-2.0 | [GitHub](https://github.com/dequelabs/axe-core) |
-| [@ibma/aat](https://www.ibm.com/able/) | latest stable | Apache-2.0 | [GitHub](https://github.com/IBMa/equal-access) |
-| [@guidepup/virtual-screen-reader](https://www.guidepup.dev/) | 1.x | MIT | [GitHub](https://github.com/guidepup/virtual-screen-reader) |
-| [Ollama](https://ollama.com/) | 0.6.x | MIT | [GitHub](https://github.com/ollama/ollama) |
-| [Gemma 3](https://ai.google.dev/gemma) | 4B | Gemma License | [Kaggle](https://www.kaggle.com/models/google/gemma) |
-| [PostgreSQL](https://www.postgresql.org/) | 16 | PostgreSQL License | [Website](https://www.postgresql.org/) |
-| [Valkey](https://valkey.io/) | 8.x | BSD-3-Clause | [GitHub](https://github.com/valkey-io/valkey) |
-| [Traefik](https://traefik.io/) | 3.x | MIT | [GitHub](https://github.com/traefik/traefik) |
-| [NextAuth.js](https://authjs.dev/) | 5.x | ISC | [GitHub](https://github.com/nextauthjs/next-auth) |
-| [Turborepo](https://turbo.build/) | 2.x | MIT | [GitHub](https://github.com/vercel/turborepo) |
-| [TypeScript](https://www.typescriptlang.org/) | 5.x | Apache-2.0 | [GitHub](https://github.com/microsoft/TypeScript) |
-| [pixelmatch](https://github.com/mapbox/pixelmatch) | 6.x | ISC | [GitHub](https://github.com/mapbox/pixelmatch) |
-| [python-docx](https://python-docx.readthedocs.io/) | pinned | MIT | [GitHub](https://github.com/python-openxml/python-docx) |
-| [WeasyPrint](https://weasyprint.org/) | pinned | BSD-3-Clause | [GitHub](https://github.com/Kozea/WeasyPrint) |
-
-## Licentie
-
-Copyright (c) 2026 [Athide.nl](https://athide.nl)
-
-Dit project is gelicenseerd onder de [European Union Public License v1.2](LICENSE) (EUPL-1.2).
-
-De EUPL-1.2 vereist dat:
-- De **naamsvermelding** (copyright notice) behouden blijft in alle kopieën en afgeleide werken
-- Afgeleide werken onder dezelfde of een [compatibele licentie](https://joinup.ec.europa.eu/collection/eupl/eupl-compatible-open-source-licences) worden verspreid
-
-## Bijdragen
-
-Bijdragen zijn welkom. Zie [CONTRIBUTING.md](CONTRIBUTING.md) voor richtlijnen.
+| Component | Versie | Licentie |
+|-----------|--------|----------|
+| [Next.js](https://nextjs.org/) | 15.5.12 | MIT |
+| [Fastify](https://fastify.dev/) | 5.8.1 | MIT |
+| [Drizzle ORM](https://orm.drizzle.team/) | 0.44.2 | Apache-2.0 |
+| [BullMQ](https://bullmq.io/) | 5.52.2 | MIT |
+| [Playwright](https://playwright.dev/) | 1.58.2 | Apache-2.0 |
+| [@axe-core/playwright](https://www.deque.com/axe/) | 4.11.1 | MPL-2.0 |
+| [accessibility-checker-engine](https://github.com/IBMa/equal-access) | 4.0.13 | Apache-2.0 |
+| [Ollama](https://ollama.com/) | 0.6.x | MIT |
+| [Gemma 3](https://ai.google.dev/gemma) | 4B | Gemma License |
+| [PostgreSQL](https://www.postgresql.org/) | 16 | PostgreSQL License |
+| [Valkey](https://valkey.io/) | 8.1 | BSD-3-Clause |
+| [Turborepo](https://turbo.build/) | 2.5.4 | MIT |
+| [TypeScript](https://www.typescriptlang.org/) | 5.8.3 | Apache-2.0 |
+| [pixelmatch](https://github.com/mapbox/pixelmatch) | 6.0.0 | ISC |
 
 ## Beveiliging
 
-Zie [SECURITY.md](SECURITY.md) voor het melden van kwetsbaarheden.
+Zie [SECURITY.md](SECURITY.md) voor beveiligingsbeleid en het melden van kwetsbaarheden.
+
+## Licentie
+
+Copyright (c) 2026 [Athide.nl](https://athide.nl) — [EUPL-1.2](LICENSE)
