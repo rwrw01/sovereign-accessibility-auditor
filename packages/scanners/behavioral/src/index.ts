@@ -1,5 +1,7 @@
-// @saa/scanner-behavioral — placeholder
-// Scanner implementation will be added in the corresponding phase
-
-export const SCANNER_NAME = "behavioral";
-export const SCANNER_VERSION = "0.1.0";
+export { runScan, getBrowser, closeBrowser } from "./orchestrator.js";
+export { createWorker } from "./worker.js";
+export { runKeyboardNavTest } from "./keyboard.js";
+export { runFocusTrapTest } from "./focus-trap.js";
+export { runFocusVisibleTest } from "./focus-visible.js";
+export { runHoverFocusTest } from "./hover-focus.js";
+export { runSkipLinkTest } from "./skip-link.js";

@@ -4,6 +4,7 @@ import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import { scanRoutes } from "./routes/scan.js";
 import { visualRegressionRoutes } from "./routes/visual-regression.js";
+import { behavioralRoutes } from "./routes/behavioral.js";
 
 const envToLogger: Record<string, object | boolean> = {
   development: {
@@ -55,6 +56,7 @@ server.get("/api/v1/health", async () => {
 
 await server.register(scanRoutes);
 await server.register(visualRegressionRoutes);
+await server.register(behavioralRoutes);
 
 const start = async (): Promise<void> => {
   const host = process.env["HOST"] ?? "127.0.0.1";

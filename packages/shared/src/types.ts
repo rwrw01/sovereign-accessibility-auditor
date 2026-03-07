@@ -145,3 +145,45 @@ export interface L2ScanJobResult {
   scenarioResults: ScenarioResult[];
   totalDurationMs: number;
 }
+
+// ── L3 Behavioral Tests Types ──
+
+export type BehavioralTest =
+  | "keyboard-nav"
+  | "focus-trap"
+  | "focus-visible"
+  | "hover-focus"
+  | "skip-link";
+
+export interface BehavioralFinding {
+  test: BehavioralTest;
+  type: IssueType;
+  wcagCriteria: string[];
+  wcagLevel: WcagLevel;
+  selector: string;
+  context: string;
+  message: string;
+  impact: "critical" | "serious" | "moderate" | "minor";
+}
+
+export interface BehavioralTestResult {
+  test: BehavioralTest;
+  findings: BehavioralFinding[];
+  durationMs: number;
+  error: string | null;
+}
+
+export interface L3ScanJobPayload {
+  scanId: string;
+  auditId: string;
+  url: string;
+  viewport: Viewport;
+  tests: BehavioralTest[];
+}
+
+export interface L3ScanJobResult {
+  scanId: string;
+  findings: BehavioralFinding[];
+  testResults: BehavioralTestResult[];
+  totalDurationMs: number;
+}
