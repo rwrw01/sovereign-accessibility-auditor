@@ -13,11 +13,16 @@
     "test": "echo 'no tests configured yet'"
   },
   "dependencies": {
-    "@saa/shared": "*"
+    "@axe-core/playwright": "4.11.1",
+    "@saa/shared": "*",
+    "accessibility-checker-engine": "4.0.13",
+    "bullmq": "5.52.2",
+    "playwright": "1.58.2",
+    "zod": "3.25.20"
   },
   "devDependencies": {
-    "typescript": "5.8.3",
+    "@types/node": "20.17.57",
     "tsx": "4.19.4",
-    "@types/node": "20.17.57"
+    "typescript": "5.8.3"
   }
 }

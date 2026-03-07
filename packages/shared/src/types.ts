@@ -62,3 +62,47 @@ export interface User {
   rol: UserRole;
   aangemaaktOp: Date;
 }
+
+// ── L1 Multi-engine Scanner Types ──
+
+export type EngineName = "axe-core" | "ibm-aat";
+
+export interface EngineResult {
+  engine: EngineName;
+  findings: Finding[];
+  durationMs: number;
+  error: string | null;
+}
+
+export interface Finding {
+  ruleId: string;
+  actRuleId: string | null;
+  type: IssueType;
+  wcagCriteria: string[];
+  wcagLevel: WcagLevel | null;
+  selector: string;
+  context: string;
+  message: string;
+  engine: EngineName;
+  impact: "critical" | "serious" | "moderate" | "minor" | null;
+}
+
+export interface DeduplicatedFinding extends Finding {
+  confirmedBy: EngineName[];
+  confidence: number;
+}
+
+export interface ScanJobPayload {
+  scanId: string;
+  auditId: string;
+  url: string;
+  viewport: Viewport;
+  engines: EngineName[];
+}
+
+export interface ScanJobResult {
+  scanId: string;
+  findings: DeduplicatedFinding[];
+  engineResults: EngineResult[];
+  totalDurationMs: number;
+}

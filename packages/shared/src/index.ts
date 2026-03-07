@@ -1,1 +1,1 @@
-export type { Audit, Scan, Issue, User, AuditStatus, ScanStatus, ScannerLayer, Severity, IssueType, WcagLevel, UserRole, Viewport } from "./types.js";
+export type { Audit, Scan, Issue, User, AuditStatus, ScanStatus, ScannerLayer, Severity, IssueType, WcagLevel, UserRole, Viewport, EngineName, EngineResult, Finding, DeduplicatedFinding, ScanJobPayload, ScanJobResult } from "./types.js";

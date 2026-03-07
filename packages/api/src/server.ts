@@ -2,6 +2,7 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
+import { scanRoutes } from "./routes/scan.js";
 
 const envToLogger: Record<string, object | boolean> = {
   development: {
@@ -50,6 +51,8 @@ await server.register(rateLimit, {
 server.get("/api/v1/health", async () => {
   return { status: "ok", timestamp: new Date().toISOString() };
 });
+
+await server.register(scanRoutes);
 
 const start = async (): Promise<void> => {
   const host = process.env["HOST"] ?? "127.0.0.1";
