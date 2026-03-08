@@ -1,6 +1,9 @@
 import { test, expect } from "@playwright/test";
 
-test.describe("Authenticatie — Happy flows", () => {
+// Auth tests need fresh context (no pre-authenticated cookies)
+test.use({ storageState: { cookies: [], origins: [] } });
+
+test.describe("Authenticatie — Happy flow", () => {
   test("Login pagina laadt correct", async ({ page }) => {
     await page.goto("/auth/login");
     await expect(page).toHaveTitle(/Inloggen/);
@@ -10,7 +13,7 @@ test.describe("Authenticatie — Happy flows", () => {
     await expect(page.getByRole("button", { name: "Inloggen" })).toBeVisible();
   });
 
-  test("Login formulier heeft correcte validatie-attributen", async ({ page }) => {
+  test("Login formulier heeft correcte HTML-attributen", async ({ page }) => {
     await page.goto("/auth/login");
     const email = page.getByLabel("E-mailadres");
     const password = page.getByLabel("Wachtwoord");
@@ -25,18 +28,25 @@ test.describe("Authenticatie — Happy flows", () => {
 
   test("Onbeveiligde pagina redirect naar login", async ({ page }) => {
     await page.goto("/");
-    // The VSCodeLayout checks auth and redirects to login
     await page.waitForURL(/\/auth\/login/, { timeout: 10_000 });
     await expect(page.getByLabel("E-mailadres")).toBeVisible();
   });
+
+  test("Succesvolle login leidt naar dashboard", async ({ page }) => {
+    await page.goto("/auth/login");
+    await page.getByLabel("E-mailadres").fill("admin@saa.local");
+    await page.getByLabel("Wachtwoord").fill("Admin2026!Secure");
+    await page.getByRole("button", { name: "Inloggen" }).click();
+
+    await page.waitForURL("/", { timeout: 15_000 });
+    await expect(page.getByRole("heading", { name: "Sovereign Accessibility Auditor" })).toBeVisible();
+  });
 });
 
-test.describe("Authenticatie — Unhappy flows", () => {
-  test("Leeg formulier indienen toont browser-validatie", async ({ page }) => {
+test.describe("Authenticatie — Unhappy flow", () => {
+  test("Leeg formulier indienen wordt geblokkeerd", async ({ page }) => {
     await page.goto("/auth/login");
-    const button = page.getByRole("button", { name: "Inloggen" });
-    await button.click();
-    // HTML5 validation prevents submission — still on login page
+    await page.getByRole("button", { name: "Inloggen" }).click();
     await expect(page).toHaveURL(/\/auth\/login/);
   });
 
@@ -46,7 +56,6 @@ test.describe("Authenticatie — Unhappy flows", () => {
     await page.getByLabel("Wachtwoord").fill("foutwachtwoord123");
     await page.getByRole("button", { name: "Inloggen" }).click();
 
-    // Should show error (either from API or network error)
     const error = page.getByRole("alert");
     await expect(error).toBeVisible({ timeout: 10_000 });
   });
@@ -56,8 +65,6 @@ test.describe("Authenticatie — Unhappy flows", () => {
     await page.getByLabel("E-mailadres").fill("admin@test.nl");
     await page.getByLabel("Wachtwoord").fill("' OR '1'='1");
     await page.getByRole("button", { name: "Inloggen" }).click();
-
-    // Must stay on login page with error or validation
     await expect(page).toHaveURL(/\/auth\/login/);
   });
 });

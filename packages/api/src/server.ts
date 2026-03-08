@@ -12,6 +12,7 @@ import { touchTargetsRoutes } from "./routes/touch-targets.js";
 import { screenreaderRoutes } from "./routes/screenreader.js";
 import { cognitiveRoutes } from "./routes/cognitive.js";
 import { authRoutes } from "./routes/auth.js";
+import { quickScanRoutes } from "./routes/quick-scan.js";
 import { registerAuthHook } from "./middleware/auth.js";
 
 const envToLogger: Record<string, object | boolean> = {
@@ -58,7 +59,7 @@ server.addHook("onSend", async (_request, reply) => {
 });
 
 await server.register(cors, {
-  origin: process.env["CORS_ORIGIN"] ?? "http://localhost:3000",
+  origin: process.env["CORS_ORIGIN"] ?? "http://localhost:13000",
   credentials: true,
 });
 
@@ -90,6 +91,7 @@ server.get("/api/v1/health", async () => {
 });
 
 await server.register(authRoutes);
+await server.register(quickScanRoutes);
 await server.register(scanRoutes);
 await server.register(visualRegressionRoutes);
 await server.register(behavioralRoutes);

@@ -2,6 +2,7 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./e2e",
+  testIgnore: ["**/screenshots.spec.ts"],
   fullyParallel: false,
   retries: 0,
   timeout: 30_000,
@@ -11,8 +12,16 @@ export default defineConfig({
   },
   projects: [
     {
+      name: "setup",
+      testMatch: /auth\.setup\.ts/,
+    },
+    {
       name: "chromium",
-      use: { browserName: "chromium" },
+      use: {
+        browserName: "chromium",
+        storageState: "e2e/.auth/user.json",
+      },
+      dependencies: ["setup"],
     },
   ],
   webServer: {

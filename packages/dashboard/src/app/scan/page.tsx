@@ -3,8 +3,6 @@
 import { useState } from "react";
 import { apiClient } from "../../lib/api-client";
 
-const AUDIT_ID = "00000000-0000-0000-0000-000000000001";
-
 interface Finding {
   check: string;
   type: "error" | "warning" | "notice";
@@ -23,33 +21,69 @@ interface ScanResult {
   totalDurationMs: number;
 }
 
+type ScanLayer = "L1" | "L2" | "L3" | "L4" | "L5" | "L6" | "L7";
 type ScanStatus = "idle" | "submitting" | "polling" | "done" | "error";
+
+const LAYER_ENDPOINTS: Record<ScanLayer, string> = {
+  L1: "scan",
+  L2: "visual-regression",
+  L3: "behavioral",
+  L4: "a11y-tree",
+  L5: "touch-targets",
+  L6: "screenreader",
+  L7: "cognitive",
+};
+
+const LAYER_LABELS: Record<ScanLayer, string> = {
+  L1: "Multi-engine (axe + IBM)",
+  L2: "Visuele regressie",
+  L3: "Gedragstests",
+  L4: "A11y tree diff",
+  L5: "Touch targets",
+  L6: "Screenreader simulatie",
+  L7: "Cognitieve analyse",
+};
 
 export default function ScanPage() {
   const [url, setUrl] = useState("https://example.com");
-  const [layer, setLayer] = useState("screenreader");
+  const [selectedLayers, setSelectedLayers] = useState<ScanLayer[]>(["L1", "L6", "L7"]);
   const [status, setStatus] = useState<ScanStatus>("idle");
   const [result, setResult] = useState<ScanResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const ENDPOINTS: Record<string, string> = {
-    scan: "scan",
-    "visual-regression": "visual-regression",
-    behavioral: "behavioral",
-    "a11y-tree": "a11y-tree",
-    "touch-targets": "touch-targets",
-    screenreader: "screenreader",
-    cognitive: "cognitive",
+  const toggleLayer = (layer: ScanLayer) => {
+    setSelectedLayers((prev) =>
+      prev.includes(layer) ? prev.filter((l) => l !== layer) : [...prev, layer],
+    );
   };
 
+  const selectAll = () => setSelectedLayers(Object.keys(LAYER_LABELS) as ScanLayer[]);
+
   const runScan = async () => {
+    if (selectedLayers.length === 0) return;
     setStatus("submitting");
     setResult(null);
     setErrorMsg(null);
 
     try {
-      const endpoint = ENDPOINTS[layer] ?? layer;
-      const res = await apiClient(`/api/v1/audits/${AUDIT_ID}/${endpoint}`, {
+      // Create quick audit
+      const qsRes = await apiClient("/api/v1/quick-scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url, layers: selectedLayers }),
+      });
+
+      if (!qsRes.ok) {
+        const errData = await qsRes.json().catch(() => ({ error: qsRes.statusText }));
+        throw new Error((errData as { error?: string }).error ?? `HTTP ${qsRes.status}`);
+      }
+
+      const { auditId } = (await qsRes.json()) as { auditId: string };
+
+      // Start first selected layer
+      const layer = selectedLayers[0]!;
+      const endpoint = LAYER_ENDPOINTS[layer];
+      const res = await apiClient(`/api/v1/audits/${auditId}/${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -73,7 +107,7 @@ export default function ScanPage() {
         }
 
         const pollRes = await apiClient(
-          `/api/v1/audits/${AUDIT_ID}/${endpoint}/${data.scanId}`,
+          `/api/v1/audits/${auditId}/${endpoint}/${data.scanId}`,
         );
 
         if (!pollRes.ok) { setTimeout(poll, 2000); return; }
@@ -113,7 +147,7 @@ export default function ScanPage() {
           Nieuwe scan
         </h1>
 
-        <div style={{ maxWidth: 500 }}>
+        <div style={{ maxWidth: 600 }}>
           <div className="form-group">
             <label htmlFor="scan-url">URL</label>
             <input
@@ -121,32 +155,50 @@ export default function ScanPage() {
               type="url"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://athide.nl"
               disabled={status === "submitting" || status === "polling"}
             />
           </div>
 
-          <div className="form-group">
-            <label htmlFor="scan-layer">Scanner</label>
-            <select
-              id="scan-layer"
-              value={layer}
-              onChange={(e) => setLayer(e.target.value)}
-              disabled={status === "submitting" || status === "polling"}
-            >
-              <option value="scan">L1 Multi-engine (axe + IBM)</option>
-              <option value="visual-regression">L2 Visuele regressie</option>
-              <option value="behavioral">L3 Gedragstests</option>
-              <option value="a11y-tree">L4 A11y tree diff</option>
-              <option value="touch-targets">L5 Touch targets</option>
-              <option value="screenreader">L6 Screenreader simulatie</option>
-              <option value="cognitive">L7 Cognitieve analyse</option>
-            </select>
-          </div>
+          <fieldset style={{ border: "none", padding: 0, marginBottom: 12 }}>
+            <legend style={{ fontSize: "0.85rem", marginBottom: 8, color: "var(--vsc-fg)" }}>
+              Scanlagen
+              <button
+                type="button"
+                onClick={selectAll}
+                style={{
+                  marginLeft: 12,
+                  background: "none",
+                  border: "1px solid var(--vsc-border)",
+                  color: "var(--vsc-link)",
+                  cursor: "pointer",
+                  fontSize: "0.75rem",
+                  padding: "2px 8px",
+                  borderRadius: 3,
+                }}
+              >
+                Selecteer alle
+              </button>
+            </legend>
+            <div className="layer-grid">
+              {(Object.keys(LAYER_LABELS) as ScanLayer[]).map((layer) => (
+                <label key={layer} className="layer-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={selectedLayers.includes(layer)}
+                    onChange={() => toggleLayer(layer)}
+                    disabled={status === "submitting" || status === "polling"}
+                  />
+                  <strong>{layer}</strong> {LAYER_LABELS[layer]}
+                </label>
+              ))}
+            </div>
+          </fieldset>
 
           <button
             className="btn-primary"
             onClick={runScan}
-            disabled={status === "submitting" || status === "polling"}
+            disabled={status === "submitting" || status === "polling" || selectedLayers.length === 0}
             type="button"
             style={{ width: "auto" }}
           >
@@ -154,12 +206,12 @@ export default function ScanPage() {
               ? "Versturen..."
               : status === "polling"
                 ? "Wachten op resultaat..."
-                : "Scan starten"}
+                : `Scan starten (${selectedLayers.length} ${selectedLayers.length === 1 ? "laag" : "lagen"})`}
           </button>
         </div>
 
         {errorMsg && (
-          <div className="login-error" role="alert" style={{ marginTop: 16, maxWidth: 500 }}>
+          <div className="login-error" role="alert" style={{ marginTop: 16, maxWidth: 600 }}>
             {errorMsg}
           </div>
         )}

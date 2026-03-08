@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Play, FileText, Settings } from "lucide-react";
 import { apiClient } from "../lib/api-client";
 
-const AUDIT_ID = "00000000-0000-0000-0000-000000000001";
+// No hardcoded audit ID — we create one via /api/v1/quick-scan
 
 type ScanLayer = "L1" | "L2" | "L3" | "L4" | "L5" | "L6" | "L7";
 
@@ -52,14 +52,47 @@ export default function DashboardPage() {
     );
   };
 
+  const [auditId, setAuditId] = useState<string | null>(null);
+
   const startScans = async () => {
     setScanning(true);
     const newScans: ScanJob[] = [];
 
+    // First create a quick audit
+    let currentAuditId = auditId;
+    if (!currentAuditId) {
+      try {
+        const qsRes = await apiClient("/api/v1/quick-scan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url, layers: selectedLayers }),
+        });
+        if (!qsRes.ok) {
+          const errData = await qsRes.json().catch(() => ({ error: qsRes.statusText }));
+          throw new Error((errData as { error?: string }).error ?? `HTTP ${qsRes.status}`);
+        }
+        const qsData = (await qsRes.json()) as { auditId: string };
+        currentAuditId = qsData.auditId;
+        setAuditId(currentAuditId);
+      } catch (err) {
+        setScanning(false);
+        setScans([{
+          layer: selectedLayers[0] ?? "L1",
+          scanId: "",
+          status: "mislukt",
+          progress: 0,
+          findings: 0,
+          duration: 0,
+          error: err instanceof Error ? err.message : String(err),
+        }]);
+        return;
+      }
+    }
+
     for (const layer of selectedLayers) {
       try {
         const endpoint = LAYER_ENDPOINTS[layer];
-        const res = await apiClient(`/api/v1/audits/${AUDIT_ID}/${endpoint}`, {
+        const res = await apiClient(`/api/v1/audits/${currentAuditId}/${endpoint}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -106,7 +139,7 @@ export default function DashboardPage() {
         try {
           const endpoint = LAYER_ENDPOINTS[scan.layer];
           const res = await apiClient(
-            `/api/v1/audits/${AUDIT_ID}/${endpoint}/${scan.scanId}`,
+            `/api/v1/audits/${auditId}/${endpoint}/${scan.scanId}`,
           );
           if (!res.ok) return scan;
 

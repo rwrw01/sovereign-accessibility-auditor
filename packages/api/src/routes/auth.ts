@@ -230,7 +230,7 @@ export async function authRoutes(server: FastifyInstance): Promise<void> {
         signJwt,
       );
 
-      const dashboardUrl = process.env["CORS_ORIGIN"] ?? "http://localhost:3000";
+      const dashboardUrl = process.env["CORS_ORIGIN"] ?? "http://localhost:13000";
 
       setAuthCookies(
         reply,

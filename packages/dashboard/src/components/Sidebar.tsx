@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import {
   ChevronRight,
@@ -34,19 +35,41 @@ const QUICK_ACTIONS: NavItem[] = [
   { label: "Rapport genereren", path: "/rapportage", icon: FileSearch },
 ];
 
+interface CollapsibleSectionProps {
+  title: string;
+  badge?: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}
+
+function CollapsibleSection({ title, badge, defaultOpen = true, children }: CollapsibleSectionProps) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      <button
+        className="vsc-tree-item"
+        style={{ fontWeight: 600, width: "100%", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+      >
+        <span className="vsc-tree-chevron" aria-hidden="true">
+          <ChevronRight size={12} style={{ transform: open ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.15s" }} />
+        </span>
+        <span className="vsc-tree-label">{title}</span>
+        {badge && <span className="vsc-tree-badge">{badge}</span>}
+      </button>
+      {open && children}
+    </div>
+  );
+}
+
 export function Sidebar({ currentPath }: Props) {
   return (
     <aside className="vsc-sidebar" aria-label="Zijbalk">
       <div className="vsc-sidebar-header">Verkenner</div>
       <nav className="vsc-sidebar-content" aria-label="Navigatie">
-        {/* Quick Actions */}
-        <div>
-          <div className="vsc-tree-item" style={{ fontWeight: 600 }}>
-            <span className="vsc-tree-chevron" aria-hidden="true">
-              <ChevronRight size={12} style={{ transform: "rotate(90deg)" }} />
-            </span>
-            <span className="vsc-tree-label">Acties</span>
-          </div>
+        <CollapsibleSection title="Acties">
           <ul role="list" style={{ listStyle: "none", paddingLeft: 8 }}>
             {QUICK_ACTIONS.map((item) => (
               <li key={item.path}>
@@ -63,17 +86,9 @@ export function Sidebar({ currentPath }: Props) {
               </li>
             ))}
           </ul>
-        </div>
+        </CollapsibleSection>
 
-        {/* Scan Layers */}
-        <div style={{ marginTop: 8 }}>
-          <div className="vsc-tree-item" style={{ fontWeight: 600 }}>
-            <span className="vsc-tree-chevron" aria-hidden="true">
-              <ChevronRight size={12} style={{ transform: "rotate(90deg)" }} />
-            </span>
-            <span className="vsc-tree-label">Scanlagen</span>
-            <span className="vsc-tree-badge">7</span>
-          </div>
+        <CollapsibleSection title="Scanlagen" badge="7">
           <ul role="list" style={{ listStyle: "none", paddingLeft: 8 }}>
             {SCAN_LAYERS.map((layer) => (
               <li key={layer.path}>
@@ -90,16 +105,9 @@ export function Sidebar({ currentPath }: Props) {
               </li>
             ))}
           </ul>
-        </div>
+        </CollapsibleSection>
 
-        {/* Status */}
-        <div style={{ marginTop: 8 }}>
-          <div className="vsc-tree-item" style={{ fontWeight: 600 }}>
-            <span className="vsc-tree-chevron" aria-hidden="true">
-              <ChevronRight size={12} style={{ transform: "rotate(90deg)" }} />
-            </span>
-            <span className="vsc-tree-label">Status</span>
-          </div>
+        <CollapsibleSection title="Status">
           <ul role="list" style={{ listStyle: "none", paddingLeft: 8 }}>
             <li className="vsc-tree-item" aria-label="API status: verbonden">
               <span className="vsc-tree-icon" aria-hidden="true">
@@ -114,7 +122,7 @@ export function Sidebar({ currentPath }: Props) {
               <span className="vsc-tree-label">Geen actieve scans</span>
             </li>
           </ul>
-        </div>
+        </CollapsibleSection>
       </nav>
     </aside>
   );
