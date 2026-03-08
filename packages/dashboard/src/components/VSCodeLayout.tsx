@@ -1,0 +1,52 @@
+"use client";
+
+import { useEffect, type ReactNode } from "react";
+import { useRouter, usePathname } from "next/navigation";
+import { isAuthenticated, logout } from "../lib/api-client";
+import { ActivityBar } from "./ActivityBar";
+import { Sidebar } from "./Sidebar";
+import { StatusBar } from "./StatusBar";
+
+interface Props {
+  children: ReactNode;
+}
+
+export function VSCodeLayout({ children }: Props) {
+  const router = useRouter();
+  const pathname = usePathname();
+
+  useEffect(() => {
+    if (!isAuthenticated() && !pathname.startsWith("/auth")) {
+      router.replace("/auth/login");
+    }
+  }, [pathname, router]);
+
+  // Don't render shell on auth pages
+  if (pathname.startsWith("/auth")) {
+    return <>{children}</>;
+  }
+
+  async function handleLogout() {
+    await logout();
+    router.replace("/auth/login");
+  }
+
+  return (
+    <div className="vsc-shell">
+      <div className="vsc-titlebar" role="banner">
+        <span className="vsc-titlebar-title">
+          Sovereign Accessibility Auditor
+        </span>
+      </div>
+
+      <ActivityBar currentPath={pathname} onLogout={handleLogout} />
+      <Sidebar currentPath={pathname} />
+
+      <main className="vsc-editor" id="main-content">
+        {children}
+      </main>
+
+      <StatusBar />
+    </div>
+  );
+}

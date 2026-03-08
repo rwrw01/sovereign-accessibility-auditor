@@ -2,6 +2,8 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
+import fastifyJwt from "@fastify/jwt";
+import fastifyCookie from "@fastify/cookie";
 import { scanRoutes } from "./routes/scan.js";
 import { visualRegressionRoutes } from "./routes/visual-regression.js";
 import { behavioralRoutes } from "./routes/behavioral.js";
@@ -9,6 +11,8 @@ import { a11yTreeRoutes } from "./routes/a11y-tree.js";
 import { touchTargetsRoutes } from "./routes/touch-targets.js";
 import { screenreaderRoutes } from "./routes/screenreader.js";
 import { cognitiveRoutes } from "./routes/cognitive.js";
+import { authRoutes } from "./routes/auth.js";
+import { registerAuthHook } from "./middleware/auth.js";
 
 const envToLogger: Record<string, object | boolean> = {
   development: {
@@ -63,10 +67,27 @@ await server.register(rateLimit, {
   timeWindow: "1 minute",
 });
 
+const jwtSecret = process.env["JWT_SECRET"];
+if (!jwtSecret || jwtSecret.length < 32) {
+  throw new Error(
+    "JWT_SECRET env var is vereist (minimaal 32 karakters). " +
+      "Genereer met: node -e \"console.log(require('crypto').randomBytes(64).toString('hex'))\"",
+  );
+}
+
+await server.register(fastifyJwt, {
+  secret: jwtSecret,
+});
+
+await server.register(fastifyCookie);
+
+registerAuthHook(server);
+
 server.get("/api/v1/health", async () => {
   return { status: "ok", timestamp: new Date().toISOString() };
 });
 
+await server.register(authRoutes);
 await server.register(scanRoutes);
 await server.register(visualRegressionRoutes);
 await server.register(behavioralRoutes);

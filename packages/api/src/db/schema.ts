@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, jsonb, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, uuid, varchar, text, jsonb, timestamp, boolean } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -6,6 +6,35 @@ export const users = pgTable("users", {
   email: varchar("email", { length: 255 }).notNull().unique(),
   naam: varchar("naam", { length: 255 }),
   rol: varchar("rol", { length: 32 }).notNull().default("auditor"),
+  passwordHash: varchar("password_hash", { length: 255 }),
+  oidcSubject: varchar("oidc_subject", { length: 255 }).unique(),
+  oidcIssuer: varchar("oidc_issuer", { length: 512 }),
+  misluktePogingen: varchar("mislukte_pogingen", { length: 8 }).notNull().default("0"),
+  geblokkerdTot: timestamp("geblokkerd_tot"),
+  laatstIngelogdOp: timestamp("laatst_ingelogd_op"),
+  aangemaaktOp: timestamp("aangemaakt_op").defaultNow(),
+});
+
+export const sessions = pgTable("sessions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  tokenHash: varchar("token_hash", { length: 128 }).notNull().unique(),
+  verlooptOp: timestamp("verloopt_op").notNull(),
+  ipAdres: varchar("ip_adres", { length: 45 }),
+  userAgent: varchar("user_agent", { length: 512 }),
+  aangemaaktOp: timestamp("aangemaakt_op").defaultNow(),
+});
+
+export const refreshTokens = pgTable("refresh_tokens", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  tokenHash: varchar("token_hash", { length: 128 }).notNull().unique(),
+  verlooptOp: timestamp("verloopt_op").notNull(),
+  ingetrokken: boolean("ingetrokken").notNull().default(false),
   aangemaaktOp: timestamp("aangemaakt_op").defaultNow(),
 });
 

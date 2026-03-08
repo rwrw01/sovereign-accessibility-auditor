@@ -63,6 +63,36 @@ export interface User {
   aangemaaktOp: Date;
 }
 
+// ── Auth Types ──
+
+export interface AuthTokens {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface JwtPayload {
+  sub: string;
+  email: string;
+  rol: UserRole;
+  gemeenteId: string;
+  iat: number;
+  exp: number;
+}
+
+export interface PublicUser {
+  id: string;
+  gemeenteId: string;
+  email: string;
+  naam: string | null;
+  rol: UserRole;
+}
+
 // ── L1 Multi-engine Scanner Types ──
 
 export type EngineName = "axe-core" | "ibm-aat";

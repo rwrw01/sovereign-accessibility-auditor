@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { apiClient } from "../../lib/api-client";
 
-const API_BASE = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001";
 const AUDIT_ID = "00000000-0000-0000-0000-000000000001";
 
 interface Finding {
@@ -49,7 +49,7 @@ export default function ScanPage() {
 
     try {
       const endpoint = ENDPOINTS[layer] ?? layer;
-      const res = await fetch(`${API_BASE}/api/v1/audits/${AUDIT_ID}/${endpoint}`, {
+      const res = await apiClient(`/api/v1/audits/${AUDIT_ID}/${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -63,27 +63,20 @@ export default function ScanPage() {
       const data = (await res.json()) as { scanId: string };
       setStatus("polling");
 
-      // Poll for results
-      const scanId = data.scanId;
       let attempts = 0;
-      const maxAttempts = 30;
-
       const poll = async () => {
         attempts++;
-        if (attempts > maxAttempts) {
+        if (attempts > 30) {
           setStatus("error");
           setErrorMsg("Scan timeout na 60 seconden");
           return;
         }
 
-        const pollRes = await fetch(
-          `${API_BASE}/api/v1/audits/${AUDIT_ID}/${endpoint}/${scanId}`,
+        const pollRes = await apiClient(
+          `/api/v1/audits/${AUDIT_ID}/${endpoint}/${data.scanId}`,
         );
 
-        if (!pollRes.ok) {
-          setTimeout(poll, 2000);
-          return;
-        }
+        if (!pollRes.ok) { setTimeout(poll, 2000); return; }
 
         const pollData = (await pollRes.json()) as {
           status: string;
@@ -111,110 +104,105 @@ export default function ScanPage() {
 
   return (
     <>
-      <h2>Nieuwe scan</h2>
-
-      <div className="card">
-        <div className="form-group">
-          <label htmlFor="scan-url">URL</label>
-          <input
-            id="scan-url"
-            type="url"
-            className="form-input"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            disabled={status === "submitting" || status === "polling"}
-          />
-        </div>
-
-        <div className="form-group">
-          <label htmlFor="scan-layer">Scanner</label>
-          <select
-            id="scan-layer"
-            className="form-input"
-            value={layer}
-            onChange={(e) => setLayer(e.target.value)}
-            disabled={status === "submitting" || status === "polling"}
-          >
-            <option value="scan">L1 Multi-engine (axe + IBM)</option>
-            <option value="visual-regression">L2 Visuele regressie</option>
-            <option value="behavioral">L3 Gedragstests</option>
-            <option value="a11y-tree">L4 A11y tree diff</option>
-            <option value="touch-targets">L5 Touch targets</option>
-            <option value="screenreader">L6 Screenreader simulatie</option>
-            <option value="cognitive">L7 Cognitieve analyse</option>
-          </select>
-        </div>
-
-        <button
-          className="btn btn-primary"
-          onClick={runScan}
-          disabled={status === "submitting" || status === "polling"}
-          type="button"
-        >
-          {status === "submitting"
-            ? "Versturen..."
-            : status === "polling"
-              ? "Wachten op resultaat..."
-              : "Scan starten"}
-        </button>
+      <div className="vsc-tabbar" role="tablist">
+        <button className="vsc-tab" role="tab" aria-selected="true">Scan</button>
       </div>
 
-      {errorMsg && (
-        <div className="card" role="alert" style={{ borderColor: "var(--nl-color-error)" }}>
-          <p style={{ color: "var(--nl-color-error)" }}>{errorMsg}</p>
+      <div className="vsc-editor-content">
+        <h2 style={{ fontSize: "1.1rem", marginBottom: 16, color: "var(--vsc-fg-active)" }}>
+          Nieuwe scan
+        </h2>
+
+        <div style={{ maxWidth: 500 }}>
+          <div className="form-group">
+            <label htmlFor="scan-url">URL</label>
+            <input
+              id="scan-url"
+              type="url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              disabled={status === "submitting" || status === "polling"}
+            />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="scan-layer">Scanner</label>
+            <select
+              id="scan-layer"
+              value={layer}
+              onChange={(e) => setLayer(e.target.value)}
+              disabled={status === "submitting" || status === "polling"}
+            >
+              <option value="scan">L1 Multi-engine (axe + IBM)</option>
+              <option value="visual-regression">L2 Visuele regressie</option>
+              <option value="behavioral">L3 Gedragstests</option>
+              <option value="a11y-tree">L4 A11y tree diff</option>
+              <option value="touch-targets">L5 Touch targets</option>
+              <option value="screenreader">L6 Screenreader simulatie</option>
+              <option value="cognitive">L7 Cognitieve analyse</option>
+            </select>
+          </div>
+
+          <button
+            className="btn-primary"
+            onClick={runScan}
+            disabled={status === "submitting" || status === "polling"}
+            type="button"
+            style={{ width: "auto" }}
+          >
+            {status === "submitting"
+              ? "Versturen..."
+              : status === "polling"
+                ? "Wachten op resultaat..."
+                : "Scan starten"}
+          </button>
         </div>
-      )}
 
-      {result && (
-        <div className="card">
-          <h2>
-            Resultaten ({result.findings.length} bevindingen, {result.totalDurationMs}ms)
-          </h2>
+        {errorMsg && (
+          <div className="login-error" role="alert" style={{ marginTop: 16, maxWidth: 500 }}>
+            {errorMsg}
+          </div>
+        )}
 
-          {result.findings.length === 0 ? (
-            <p>Geen bevindingen gevonden.</p>
-          ) : (
-            <div className="table-container">
-              <table>
-                <thead>
-                  <tr>
-                    <th scope="col">Type</th>
-                    <th scope="col">Impact</th>
-                    <th scope="col">WCAG</th>
-                    <th scope="col">Check</th>
-                    <th scope="col">Bericht</th>
-                    <th scope="col">Selector</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {result.findings.map((finding, i) => (
-                    <tr key={i}>
-                      <td>
-                        <span className={`badge badge-${finding.type}`}>{finding.type}</span>
-                      </td>
-                      <td>
-                        <span className={`badge badge-${finding.impact}`}>{finding.impact}</span>
-                      </td>
-                      <td>
-                        {finding.wcagCriteria.map((c) => (
-                          <span key={c} style={{ marginRight: "4px" }}>
-                            {c} ({finding.wcagLevel})
-                          </span>
-                        ))}
-                      </td>
-                      <td>{finding.check}</td>
-                      <td>{finding.message}</td>
-                      <td>
-                        <code style={{ fontSize: "0.75rem" }}>{finding.selector}</code>
-                      </td>
+        {result && (
+          <div style={{ marginTop: 24 }}>
+            <h3 style={{ fontSize: "0.95rem", marginBottom: 12, color: "var(--vsc-fg-active)" }}>
+              Resultaten ({result.findings.length} bevindingen, {result.totalDurationMs}ms)
+            </h3>
+
+            {result.findings.length === 0 ? (
+              <p style={{ color: "var(--vsc-fg-secondary)" }}>Geen bevindingen gevonden.</p>
+            ) : (
+              <div className="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th scope="col">Type</th>
+                      <th scope="col">Impact</th>
+                      <th scope="col">WCAG</th>
+                      <th scope="col">Check</th>
+                      <th scope="col">Bericht</th>
+                      <th scope="col">Selector</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
+                  </thead>
+                  <tbody>
+                    {result.findings.map((f, i) => (
+                      <tr key={i}>
+                        <td><span className={`badge badge-${f.type}`}>{f.type}</span></td>
+                        <td><span className={`badge badge-${f.impact}`}>{f.impact}</span></td>
+                        <td>{f.wcagCriteria.join(", ")}</td>
+                        <td>{f.check}</td>
+                        <td>{f.message}</td>
+                        <td><code style={{ fontSize: "0.7rem", color: "var(--vsc-fg-secondary)" }}>{f.selector}</code></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </>
   );
 }

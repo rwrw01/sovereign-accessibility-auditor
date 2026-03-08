@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Download } from "lucide-react";
 
 interface ReportData {
   url: string;
@@ -18,10 +18,7 @@ interface ReportData {
 }
 
 export default function RapportagePage() {
-  const [reportData] = useState<ReportData | null>(null);
-
   const generateReport = () => {
-    // Demo report data — in production this would aggregate scan results from the API
     const report: ReportData = {
       url: "https://example.com",
       timestamp: new Date().toISOString(),
@@ -35,7 +32,6 @@ export default function RapportagePage() {
     };
 
     const markdown = generateMarkdownReport(report);
-
     const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -47,89 +43,57 @@ export default function RapportagePage() {
 
   return (
     <>
-      <h2>Rapportage</h2>
+      <div className="vsc-tabbar" role="tablist">
+        <button className="vsc-tab" role="tab" aria-selected="true">Rapportage</button>
+      </div>
 
-      <div className="card">
-        <h2>Rapport genereren</h2>
-        <p style={{ marginBottom: "1rem" }}>
+      <div className="vsc-editor-content">
+        <h2 style={{ fontSize: "1.1rem", marginBottom: 16, color: "var(--vsc-fg-active)" }}>
+          Rapport genereren
+        </h2>
+
+        <p style={{ color: "var(--vsc-fg-secondary)", marginBottom: 24, maxWidth: 600 }}>
           Genereer een WCAG 2.2 AA conformiteitsrapport op basis van de laatste scanresultaten.
-          Het rapport bevat een samenvatting per scan-laag, bevindingen per WCAG-criterium,
-          en aanbevelingen voor verbetering.
         </p>
 
-        <div style={{ display: "flex", gap: "0.5rem" }}>
-          <button className="btn btn-primary" onClick={generateReport} type="button">
-            Rapport downloaden (Markdown)
-          </button>
+        <button className="btn-primary" onClick={generateReport} type="button" style={{ width: "auto" }}>
+          <Download size={14} /> Rapport downloaden (Markdown)
+        </button>
+
+        <div style={{ marginTop: 32 }}>
+          <h3 style={{ fontSize: "0.95rem", marginBottom: 12, color: "var(--vsc-fg-active)" }}>
+            Rapport structuur
+          </h3>
+          <ol style={{ paddingLeft: 20, lineHeight: 2, color: "var(--vsc-fg-secondary)", fontSize: "0.85rem" }}>
+            <li>Samenvatting — URL, datum, conformiteitsstatus</li>
+            <li>Resultaten per laag — L1 t/m L7</li>
+            <li>WCAG criteria overzicht</li>
+            <li>Bevindingen detail — selector, context, aanbeveling</li>
+            <li>Aanbevelingen — geprioriteerde verbeteracties</li>
+          </ol>
         </div>
       </div>
-
-      <div className="card">
-        <h2>Rapport structuur</h2>
-        <p>Het rapport bevat de volgende secties:</p>
-        <ol style={{ paddingLeft: "1.5rem", lineHeight: 2 }}>
-          <li><strong>Samenvatting</strong> — URL, datum, totaal bevindingen, conformiteitsstatus</li>
-          <li><strong>Resultaten per laag</strong> — L1 t/m L7 met bevindingen per type</li>
-          <li><strong>WCAG criteria overzicht</strong> — Alle getoetste criteria met status</li>
-          <li><strong>Bevindingen detail</strong> — Per bevinding: selector, context, aanbeveling</li>
-          <li><strong>Aanbevelingen</strong> — Geprioriteerde lijst van verbeteracties</li>
-        </ol>
-      </div>
-
-      {reportData && (
-        <div className="card">
-          <h2>Laatste rapport</h2>
-          <div className="stats-grid">
-            <div className="stat-card">
-              <div className="stat-value">{reportData.totalFindings}</div>
-              <div className="stat-label">Totaal bevindingen</div>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }
 
 function generateMarkdownReport(report: ReportData): string {
   const lines: string[] = [];
-
-  lines.push("# WCAG 2.2 AA Conformiteitsrapport");
-  lines.push("");
+  lines.push("# WCAG 2.2 AA Conformiteitsrapport", "");
   lines.push(`**URL**: ${report.url}`);
   lines.push(`**Datum**: ${new Date(report.timestamp).toLocaleDateString("nl-NL")}`);
   lines.push(`**Tool**: Sovereign Accessibility Auditor v0.1.0`);
-  lines.push(`**Standaard**: WCAG 2.2 AA (ISO/IEC 40500:2025)`);
-  lines.push("");
-
-  lines.push("## Samenvatting");
-  lines.push("");
+  lines.push(`**Standaard**: WCAG 2.2 AA (ISO/IEC 40500:2025)`, "");
+  lines.push("## Samenvatting", "");
   lines.push(`- **Totaal bevindingen**: ${report.totalFindings}`);
-  lines.push(`- **Conformiteitsstatus**: ${report.wcagCompliance}`);
-  lines.push("");
-
-  lines.push("## Resultaten per scan-laag");
-  lines.push("");
+  lines.push(`- **Conformiteitsstatus**: ${report.wcagCompliance}`, "");
+  lines.push("## Resultaten per scan-laag", "");
   lines.push("| Laag | Bevindingen | Fouten | Waarschuwingen | Meldingen | Duur |");
   lines.push("|------|-------------|--------|----------------|-----------|------|");
-
-  for (const layer of report.layers) {
-    lines.push(
-      `| ${layer.name} | ${layer.findings} | ${layer.errors} | ${layer.warnings} | ${layer.notices} | ${layer.durationMs}ms |`,
-    );
+  for (const l of report.layers) {
+    lines.push(`| ${l.name} | ${l.findings} | ${l.errors} | ${l.warnings} | ${l.notices} | ${l.durationMs}ms |`);
   }
-
-  lines.push("");
-  lines.push("## Aanbevelingen");
-  lines.push("");
-  lines.push("1. Los eerst alle **fouten** (errors) op — deze vormen een direct WCAG-conformiteitsprobleem");
-  lines.push("2. Evalueer **waarschuwingen** (warnings) — deze zijn waarschijnlijk problemen maar vereisen handmatige beoordeling");
-  lines.push("3. Bekijk **meldingen** (notices) — deze zijn informatief en kunnen de toegankelijkheid verbeteren");
-  lines.push("");
-  lines.push("---");
-  lines.push("");
-  lines.push("*Dit rapport is automatisch gegenereerd door de Sovereign Accessibility Auditor.*");
-  lines.push("*Handmatige beoordeling door een WCAG-expert wordt aanbevolen voor een volledig conformiteitsrapport.*");
-
+  lines.push("", "---", "");
+  lines.push("*Automatisch gegenereerd door SAA. Handmatige beoordeling aanbevolen.*");
   return lines.join("\n");
 }
