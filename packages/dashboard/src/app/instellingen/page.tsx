@@ -23,46 +23,46 @@ export default function InstellingenPage() {
 
   return (
     <>
-      <div className="vsc-tabbar" role="tablist">
-        <button className="vsc-tab" role="tab" aria-selected="true">Instellingen</button>
+      <div className="vsc-tabbar">
+        <span className="vsc-tab" aria-current="true">Instellingen</span>
       </div>
 
       <div className="vsc-editor-content">
-        <h2 style={{ fontSize: "1.1rem", marginBottom: 24, color: "var(--vsc-fg-active)" }}>
+        <h1 style={{ fontSize: "1.1rem", marginBottom: 24, color: "var(--vsc-fg-active)" }}>
           Instellingen
-        </h2>
+        </h1>
 
         <div style={{ maxWidth: 500 }}>
-          <h3 style={{ fontSize: "0.95rem", marginBottom: 12, color: "var(--vsc-fg-active)" }}>
+          <h2 style={{ fontSize: "0.95rem", marginBottom: 12, color: "var(--vsc-fg-active)" }}>
             Gebruikersprofiel
-          </h3>
+          </h2>
 
           {user ? (
             <div style={{ display: "grid", gap: 12 }}>
               <div className="form-group">
-                <label>E-mailadres</label>
-                <input value={user.email} disabled />
+                <label htmlFor="settings-email">E-mailadres</label>
+                <input id="settings-email" value={user.email} disabled />
               </div>
               <div className="form-group">
-                <label>Naam</label>
-                <input value={user.naam ?? ""} disabled />
+                <label htmlFor="settings-naam">Naam</label>
+                <input id="settings-naam" value={user.naam ?? ""} disabled />
               </div>
               <div className="form-group">
-                <label>Rol</label>
-                <input value={user.rol} disabled />
+                <label htmlFor="settings-rol">Rol</label>
+                <input id="settings-rol" value={user.rol} disabled />
               </div>
               <div className="form-group">
-                <label>Gemeente</label>
-                <input value={user.gemeenteId} disabled />
+                <label htmlFor="settings-gemeente">Gemeente</label>
+                <input id="settings-gemeente" value={user.gemeenteId} disabled />
               </div>
             </div>
           ) : (
-            <p style={{ color: "var(--vsc-fg-secondary)" }}>Laden...</p>
+            <p style={{ color: "var(--vsc-fg-secondary)" }} role="status">Laden...</p>
           )}
 
-          <h3 style={{ fontSize: "0.95rem", marginTop: 32, marginBottom: 12, color: "var(--vsc-fg-active)" }}>
+          <h2 style={{ fontSize: "0.95rem", marginTop: 32, marginBottom: 12, color: "var(--vsc-fg-active)" }}>
             Over
-          </h3>
+          </h2>
           <div style={{ color: "var(--vsc-fg-secondary)", fontSize: "0.85rem", lineHeight: 1.8 }}>
             <p>Sovereign Accessibility Auditor v0.1.0</p>
             <p>WCAG 2.2 AA (ISO/IEC 40500:2025)</p>

@@ -77,6 +77,8 @@ if (!jwtSecret || jwtSecret.length < 32) {
 
 await server.register(fastifyJwt, {
   secret: jwtSecret,
+  sign: { algorithm: "HS256" },
+  verify: { algorithms: ["HS256"] },
 });
 
 await server.register(fastifyCookie);
@@ -95,6 +97,15 @@ await server.register(a11yTreeRoutes);
 await server.register(touchTargetsRoutes);
 await server.register(screenreaderRoutes);
 await server.register(cognitiveRoutes);
+
+// Graceful shutdown
+for (const signal of ["SIGTERM", "SIGINT"] as const) {
+  process.on(signal, async () => {
+    server.log.info(`${signal} received, shutting down...`);
+    await server.close();
+    process.exit(0);
+  });
+}
 
 const start = async (): Promise<void> => {
   const host = process.env["HOST"] ?? "127.0.0.1";

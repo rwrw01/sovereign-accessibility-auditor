@@ -9,8 +9,10 @@ services:
       POSTGRES_DB: saa
       POSTGRES_USER: saa
       POSTGRES_PASSWORD: saa_dev_password
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:15432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     networks:
@@ -298,7 +300,7 @@ volumes:
 networks:
   db-net:
     driver: bridge
-    internal: true
+    # internal: true — disabled for local dev (Docker Desktop port forwarding needs external access)
   redis-net:
     driver: bridge
     internal: true

@@ -36,13 +36,17 @@ export function registerAuthHook(server: FastifyInstance): void {
         return;
       }
 
+      // Support both Authorization header and HttpOnly cookie
       const authHeader = request.headers.authorization;
-      if (!authHeader?.startsWith("Bearer ")) {
+      const cookieToken = (request.cookies as Record<string, string> | undefined)?.["saa_access_token"];
+      const token = authHeader?.startsWith("Bearer ")
+        ? authHeader.slice(7)
+        : cookieToken;
+
+      if (!token) {
         reply.code(401).send({ error: "Authenticatie vereist" });
         return;
       }
-
-      const token = authHeader.slice(7);
       try {
         const payload = server.jwt.verify(token) as TokenPayload;
         setUser(request, payload);

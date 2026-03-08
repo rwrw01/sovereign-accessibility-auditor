@@ -1,4 +1,4 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 import {
   authenticateUser,
@@ -28,10 +28,6 @@ const loginSchema = z.object({
   password: z.string().min(8).max(128),
 });
 
-const refreshSchema = z.object({
-  refreshToken: z.string().min(64).max(128),
-});
-
 const registerSchema = z.object({
   email: z.string().email().max(255),
   password: z.string().min(12).max(128),
@@ -39,6 +35,35 @@ const registerSchema = z.object({
   naam: z.string().max(255).optional(),
   rol: z.enum(["admin", "auditor", "viewer"]).optional(),
 });
+
+function setAuthCookies(
+  reply: FastifyReply,
+  accessToken: string,
+  refreshToken: string,
+  expiresIn: number,
+): void {
+  const isProduction = process.env["NODE_ENV"] === "production";
+
+  reply.setCookie("saa_access_token", accessToken, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: "lax",
+    path: "/",
+    maxAge: expiresIn,
+  });
+  reply.setCookie("saa_refresh_token", refreshToken, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 7 * 24 * 60 * 60,
+  });
+}
+
+function clearAuthCookies(reply: FastifyReply): void {
+  reply.clearCookie("saa_access_token", { path: "/" });
+  reply.clearCookie("saa_refresh_token", { path: "/" });
+}
 
 export async function authRoutes(server: FastifyInstance): Promise<void> {
   const signJwt = (payload: JwtSignPayload): string => {
@@ -73,36 +98,54 @@ export async function authRoutes(server: FastifyInstance): Promise<void> {
           .send({ error: "E-mailadres of wachtwoord onjuist" });
       }
 
-      return reply.send(result);
+      setAuthCookies(
+        reply,
+        result.tokens.accessToken,
+        result.tokens.refreshToken,
+        result.tokens.expiresIn,
+      );
+
+      return reply.send({ user: result.user });
     },
   );
 
-  // Refresh token
-  server.post("/api/v1/auth/refresh", async (request, reply) => {
-    const parsed = refreshSchema.safeParse(request.body);
-    if (!parsed.success) {
-      return reply.code(400).send({ error: "Ongeldige invoer" });
-    }
+  // Refresh token (cookie-based, rate limited)
+  server.post(
+    "/api/v1/auth/refresh",
+    { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const cookies = request.cookies as Record<string, string> | undefined;
+      const refreshToken = cookies?.["saa_refresh_token"];
 
-    const tokens = await refreshAccessToken(parsed.data.refreshToken, signJwt);
+      if (!refreshToken) {
+        return reply.code(400).send({ error: "Geen refresh token" });
+      }
 
-    if (!tokens) {
-      return reply
-        .code(401)
-        .send({ error: "Ongeldig of verlopen refresh token" });
-    }
+      const tokens = await refreshAccessToken(refreshToken, signJwt);
 
-    return reply.send(tokens);
-  });
+      if (!tokens) {
+        clearAuthCookies(reply);
+        return reply
+          .code(401)
+          .send({ error: "Ongeldig of verlopen refresh token" });
+      }
 
-  // Logout
+      setAuthCookies(reply, tokens.accessToken, tokens.refreshToken, tokens.expiresIn);
+      return reply.send({ ok: true });
+    },
+  );
+
+  // Logout (revoke refresh token from cookie)
   server.post("/api/v1/auth/logout", async (request, reply) => {
-    const parsed = refreshSchema.safeParse(request.body);
-    if (!parsed.success) {
-      return reply.code(400).send({ error: "Ongeldige invoer" });
+    const authUser = getUser(request);
+    const cookies = request.cookies as Record<string, string> | undefined;
+    const refreshToken = cookies?.["saa_refresh_token"];
+
+    if (refreshToken && authUser) {
+      await revokeRefreshToken(refreshToken, authUser.sub);
     }
 
-    await revokeRefreshToken(parsed.data.refreshToken);
+    clearAuthCookies(reply);
     return reply.code(204).send();
   });
 
@@ -187,14 +230,16 @@ export async function authRoutes(server: FastifyInstance): Promise<void> {
         signJwt,
       );
 
-      // Redirect to dashboard with tokens as query params
       const dashboardUrl = process.env["CORS_ORIGIN"] ?? "http://localhost:3000";
-      const params = new URLSearchParams({
-        accessToken: result.tokens.accessToken,
-        refreshToken: result.tokens.refreshToken,
-        expiresIn: String(result.tokens.expiresIn),
-      });
-      return reply.redirect(`${dashboardUrl}/auth/callback?${params.toString()}`);
+
+      setAuthCookies(
+        reply,
+        result.tokens.accessToken,
+        result.tokens.refreshToken,
+        result.tokens.expiresIn,
+      );
+
+      return reply.redirect(`${dashboardUrl}/auth/callback?oidc=success`);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "OIDC fout";
       server.log.error({ err }, "OIDC callback error");

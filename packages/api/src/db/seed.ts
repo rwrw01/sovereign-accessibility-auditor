@@ -1,14 +1,20 @@
 /**
  * Development seed script — creates a default admin user.
  * Usage: npx tsx packages/api/src/db/seed.ts
+ *
+ * Override credentials via env vars:
+ *   SEED_ADMIN_EMAIL (default: admin@saa.local)
+ *   SEED_ADMIN_PASSWORD (default: generated random)
  */
+import { randomBytes } from "node:crypto";
 import { db } from "./connection.js";
 import { users } from "./schema.js";
 import { hashPassword } from "../services/auth.service.js";
 import { eq } from "drizzle-orm";
 
-const ADMIN_EMAIL = "admin@saa.local";
-const ADMIN_PASSWORD = "Admin2026!Secure";
+const ADMIN_EMAIL = process.env["SEED_ADMIN_EMAIL"] ?? "admin@saa.local";
+const ADMIN_PASSWORD =
+  process.env["SEED_ADMIN_PASSWORD"] ?? randomBytes(16).toString("base64url");
 
 async function seed(): Promise<void> {
   console.log("[seed] Checking for existing admin user...");

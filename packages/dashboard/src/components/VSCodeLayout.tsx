@@ -2,7 +2,7 @@
 
 import { useEffect, type ReactNode } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { isAuthenticated, logout } from "../lib/api-client";
+import { checkAuth, logout } from "../lib/api-client";
 import { ActivityBar } from "./ActivityBar";
 import { Sidebar } from "./Sidebar";
 import { StatusBar } from "./StatusBar";
@@ -16,8 +16,8 @@ export function VSCodeLayout({ children }: Props) {
   const pathname = usePathname();
 
   useEffect(() => {
-    if (!isAuthenticated() && !pathname.startsWith("/auth")) {
-      router.replace("/auth/login");
+    if (!pathname.startsWith("/auth")) {
+      checkAuth().then((ok) => { if (!ok) router.replace("/auth/login"); });
     }
   }, [pathname, router]);
 

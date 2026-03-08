@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, jsonb, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, uuid, varchar, text, jsonb, timestamp, boolean, integer } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -9,7 +9,7 @@ export const users = pgTable("users", {
   passwordHash: varchar("password_hash", { length: 255 }),
   oidcSubject: varchar("oidc_subject", { length: 255 }).unique(),
   oidcIssuer: varchar("oidc_issuer", { length: 512 }),
-  misluktePogingen: varchar("mislukte_pogingen", { length: 8 }).notNull().default("0"),
+  misluktePogingen: integer("mislukte_pogingen").notNull().default(0),
   geblokkerdTot: timestamp("geblokkerd_tot"),
   laatstIngelogdOp: timestamp("laatst_ingelogd_op"),
   aangemaaktOp: timestamp("aangemaakt_op").defaultNow(),

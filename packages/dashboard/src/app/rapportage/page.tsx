@@ -43,21 +43,21 @@ export default function RapportagePage() {
 
   return (
     <>
-      <div className="vsc-tabbar" role="tablist">
-        <button className="vsc-tab" role="tab" aria-selected="true">Rapportage</button>
+      <div className="vsc-tabbar">
+        <span className="vsc-tab" aria-current="true">Rapportage</span>
       </div>
 
       <div className="vsc-editor-content">
-        <h2 style={{ fontSize: "1.1rem", marginBottom: 16, color: "var(--vsc-fg-active)" }}>
+        <h1 style={{ fontSize: "1.1rem", marginBottom: 16, color: "var(--vsc-fg-active)" }}>
           Rapport genereren
-        </h2>
+        </h1>
 
         <p style={{ color: "var(--vsc-fg-secondary)", marginBottom: 24, maxWidth: 600 }}>
           Genereer een WCAG 2.2 AA conformiteitsrapport op basis van de laatste scanresultaten.
         </p>
 
         <button className="btn-primary" onClick={generateReport} type="button" style={{ width: "auto" }}>
-          <Download size={14} /> Rapport downloaden (Markdown)
+          <Download size={14} aria-hidden="true" /> Rapport downloaden (Markdown)
         </button>
 
         <div style={{ marginTop: 32 }}>

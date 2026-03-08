@@ -104,14 +104,14 @@ export default function ScanPage() {
 
   return (
     <>
-      <div className="vsc-tabbar" role="tablist">
-        <button className="vsc-tab" role="tab" aria-selected="true">Scan</button>
+      <div className="vsc-tabbar">
+        <span className="vsc-tab" aria-current="true">Scan</span>
       </div>
 
       <div className="vsc-editor-content">
-        <h2 style={{ fontSize: "1.1rem", marginBottom: 16, color: "var(--vsc-fg-active)" }}>
+        <h1 style={{ fontSize: "1.1rem", marginBottom: 16, color: "var(--vsc-fg-active)" }}>
           Nieuwe scan
-        </h2>
+        </h1>
 
         <div style={{ maxWidth: 500 }}>
           <div className="form-group">
@@ -165,10 +165,10 @@ export default function ScanPage() {
         )}
 
         {result && (
-          <div style={{ marginTop: 24 }}>
-            <h3 style={{ fontSize: "0.95rem", marginBottom: 12, color: "var(--vsc-fg-active)" }}>
+          <div style={{ marginTop: 24 }} aria-live="polite">
+            <h2 style={{ fontSize: "0.95rem", marginBottom: 12, color: "var(--vsc-fg-active)" }}>
               Resultaten ({result.findings.length} bevindingen, {result.totalDurationMs}ms)
-            </h3>
+            </h2>
 
             {result.findings.length === 0 ? (
               <p style={{ color: "var(--vsc-fg-secondary)" }}>Geen bevindingen gevonden.</p>

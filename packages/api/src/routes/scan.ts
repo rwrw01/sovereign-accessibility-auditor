@@ -3,6 +3,27 @@ import { z } from "zod";
 import { Queue } from "bullmq";
 import type { ScanJobPayload, EngineName } from "@saa/shared";
 
+const BLOCKED_HOSTS = new Set([
+  "localhost", "127.0.0.1", "0.0.0.0", "::1", "[::1]",
+  "metadata.google.internal", "169.254.169.254",
+]);
+
+function isUrlSafe(urlString: string): boolean {
+  try {
+    const parsed = new URL(urlString);
+    if (!["http:", "https:"].includes(parsed.protocol)) return false;
+    const hostname = parsed.hostname.toLowerCase();
+    if (BLOCKED_HOSTS.has(hostname)) return false;
+    // Block private IP ranges
+    if (/^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.)/.test(hostname)) return false;
+    if (/^(fc|fd|fe80)/i.test(hostname)) return false;
+    if (/^0\./.test(hostname)) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const REDIS_HOST = process.env["REDIS_HOST"] ?? "127.0.0.1";
 const REDIS_PORT = Number(process.env["REDIS_PORT"] ?? "6379");
 
@@ -39,6 +60,10 @@ export async function scanRoutes(app: FastifyInstance): Promise<void> {
   }>("/api/v1/audits/:auditId/scan", async (request, reply) => {
     const auditId = uuidSchema.parse(request.params.auditId);
     const body = scanRequestSchema.parse(request.body);
+
+    if (!isUrlSafe(body.url)) {
+      return reply.status(400).send({ error: "URL is niet toegestaan (intern/privé adres)" });
+    }
 
     const scanId = crypto.randomUUID();
 

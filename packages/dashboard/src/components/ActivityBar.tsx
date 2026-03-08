@@ -7,6 +7,7 @@ import {
   Play,
   FileText,
   Settings,
+  HelpCircle,
   LogOut,
 } from "lucide-react";
 
@@ -21,6 +22,7 @@ const ITEMS = [
   { path: "/audits", icon: Search, label: "Audits" },
   { path: "/rapportage", icon: FileText, label: "Rapportage" },
   { path: "/instellingen", icon: Settings, label: "Instellingen" },
+  { path: "/help", icon: HelpCircle, label: "Help" },
 ];
 
 export function ActivityBar({ currentPath, onLogout }: Props) {

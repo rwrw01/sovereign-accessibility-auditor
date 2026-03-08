@@ -149,10 +149,10 @@ export default function DashboardPage() {
   return (
     <>
       {/* Tab Bar */}
-      <div className="vsc-tabbar" role="tablist">
-        <button className="vsc-tab" role="tab" aria-selected="true">
+      <div className="vsc-tabbar">
+        <span className="vsc-tab" aria-current="true">
           Welkom
-        </button>
+        </span>
       </div>
 
       {/* Editor Content */}
@@ -218,7 +218,7 @@ export default function DashboardPage() {
           </div>
         ) : (
           /* Scan results view */
-          <>
+          <div aria-live="polite" aria-atomic="false">
             <div className="stats-grid" role="region" aria-label="Scan statistieken">
               <div className="stat-card">
                 <div className="stat-value">{totalFindings}</div>
@@ -266,7 +266,7 @@ export default function DashboardPage() {
                         )}
                       </td>
                       <td>
-                        <div className="progress-bar" role="progressbar" aria-valuenow={scan.progress} aria-valuemin={0} aria-valuemax={100}>
+                        <div className="progress-bar" role="progressbar" aria-valuenow={scan.progress} aria-valuemin={0} aria-valuemax={100} aria-label={`Voortgang ${scan.layer} ${LAYER_LABELS[scan.layer]}`}>
                           <div className="progress-bar-fill" style={{ width: `${scan.progress}%` }} />
                         </div>
                       </td>
@@ -277,17 +277,17 @@ export default function DashboardPage() {
                 </tbody>
               </table>
             </div>
-          </>
+          </div>
         )}
       </div>
 
       {/* Bottom Panel */}
       {scans.length > 0 && (
         <div className="vsc-panel" style={{ height: "var(--vsc-panel-h)" }}>
-          <div className="vsc-panel-tabs" role="tablist">
-            <button className="vsc-panel-tab" role="tab" aria-selected="true">
+          <div className="vsc-panel-tabs">
+            <span className="vsc-panel-tab" aria-current="true">
               Bevindingen
-            </button>
+            </span>
           </div>
           <div className="vsc-panel-content" role="tabpanel">
             {scans

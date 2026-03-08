@@ -2,9 +2,10 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "./schema.js";
 
-const connectionString =
-  process.env["DATABASE_URL"] ??
-  "postgresql://saa:saa_dev_password@localhost:5432/saa";
+const connectionString = process.env["DATABASE_URL"];
+if (!connectionString) {
+  throw new Error("DATABASE_URL env var is vereist.");
+}
 
 const client = postgres(connectionString, {
   max: 10,

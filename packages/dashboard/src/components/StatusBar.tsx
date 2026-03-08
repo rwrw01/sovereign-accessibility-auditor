@@ -4,14 +4,14 @@ import { Shield, GitBranch } from "lucide-react";
 
 export function StatusBar() {
   return (
-    <footer className="vsc-statusbar" role="status" aria-live="polite">
+    <footer className="vsc-statusbar" aria-label="Statusbalk">
       <div className="vsc-statusbar-left">
         <span className="vsc-statusbar-item">
-          <Shield size={12} />
+          <Shield size={12} aria-hidden="true" />
           WCAG 2.2 AA
         </span>
         <span className="vsc-statusbar-item">
-          <GitBranch size={12} />
+          <GitBranch size={12} aria-hidden="true" />
           v0.1.0
         </span>
       </div>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { login, isAuthenticated, getOidcStatus, getOidcAuthorizeUrl } from "../../../lib/api-client";
+import { login, checkAuth, getOidcStatus, getOidcAuthorizeUrl } from "../../../lib/api-client";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -13,9 +13,7 @@ export default function LoginPage() {
   const [oidcEnabled, setOidcEnabled] = useState(false);
 
   useEffect(() => {
-    if (isAuthenticated()) {
-      router.replace("/");
-    }
+    checkAuth().then((ok) => { if (ok) router.replace("/"); });
     getOidcStatus().then(setOidcEnabled);
   }, [router]);
 
@@ -36,7 +34,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="login-container">
+    <main className="login-container">
       <div className="login-card">
         <h1>Sovereign Accessibility Auditor</h1>
         <p className="login-subtitle">Log in om door te gaan</p>
@@ -57,7 +55,6 @@ export default function LoginPage() {
               onChange={(e) => setEmail(e.target.value)}
               required
               autoComplete="email"
-              autoFocus
             />
           </div>
 
@@ -91,6 +88,6 @@ export default function LoginPage() {
           </a>
         )}
       </div>
-    </div>
+    </main>
   );
 }

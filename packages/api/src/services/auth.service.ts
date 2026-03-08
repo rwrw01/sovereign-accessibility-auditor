@@ -57,21 +57,26 @@ export async function authenticateUser(
     .where(eq(users.email, email.toLowerCase()))
     .limit(1);
 
+  // Constant-time: always run argon2 to prevent timing side-channel
+  const dummyHash = "$argon2id$v=19$m=65536,t=3,p=1$c29tZXNhbHQ$RdescudvJCsgt3ub+b+daw";
+
   if (!user || !user.passwordHash) {
+    await verifyPassword(dummyHash, password).catch(() => {});
     return null;
   }
 
-  // Check account lockout
+  // Check lockout (still verify to prevent timing leak)
   if (user.geblokkerdTot && new Date(user.geblokkerdTot) > new Date()) {
+    await verifyPassword(user.passwordHash, password).catch(() => {});
     return null;
   }
 
   const valid = await verifyPassword(user.passwordHash, password);
 
   if (!valid) {
-    const attempts = Number(user.misluktePogingen) + 1;
+    const attempts = user.misluktePogingen + 1;
     const updates: Record<string, unknown> = {
-      misluktePogingen: String(attempts),
+      misluktePogingen: attempts,
     };
 
     if (attempts >= MAX_FAILED_ATTEMPTS) {
@@ -88,7 +93,7 @@ export async function authenticateUser(
   await db
     .update(users)
     .set({
-      misluktePogingen: "0",
+      misluktePogingen: 0,
       geblokkerdTot: null,
       laatstIngelogdOp: new Date(),
     })
@@ -186,12 +191,16 @@ export async function refreshAccessToken(
   };
 }
 
-export async function revokeRefreshToken(token: string): Promise<void> {
+export async function revokeRefreshToken(token: string, userId?: string): Promise<void> {
   const tokenHash = hashToken(token);
+  const conditions = [eq(refreshTokens.tokenHash, tokenHash)];
+  if (userId) {
+    conditions.push(eq(refreshTokens.userId, userId));
+  }
   await db
     .update(refreshTokens)
     .set({ ingetrokken: true })
-    .where(eq(refreshTokens.tokenHash, tokenHash));
+    .where(and(...conditions));
 }
 
 export async function getUserById(id: string): Promise<PublicUser | null> {
