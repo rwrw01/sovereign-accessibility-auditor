@@ -5,7 +5,7 @@
   "license": "EUPL-1.2",
   "scripts": {
     "build": "next build",
-    "dev": "next dev --port 3000",
+    "dev": "next dev --port 13000",
     "typecheck": "tsc --noEmit",
     "lint": "next lint",
     "test": "echo 'no tests configured yet'"
@@ -13,7 +13,7 @@
   "dependencies": {
     "@saa/shared": "*",
     "lucide-react": "0.577.0",
-    "next": "15.5.12",
+    "next": "15.5.14",
     "react": "19.1.0",
     "react-dom": "19.1.0"
   },
