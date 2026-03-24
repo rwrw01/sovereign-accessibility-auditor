@@ -161,7 +161,9 @@ function buildFindingBlock(finding: AggregatedFinding, showPages: boolean): File
     ? `${finding.count}× gevonden (site-breed, op alle pagina's)`
     : `${finding.count}× gevonden — pagina('s): ${pageList}`;
 
-  const heading = `[${typeNL(finding.type)} / ${impactNL(finding.impact)}] ${criteria}: ${finding.representativeMessage.slice(0, 80)}`;
+  // Use Dutch narrative for heading instead of raw English scanner message
+  const beschrijving = finding.narrative.watFout.split(/[.!?]/)[0] ?? finding.representativeMessage;
+  const heading = `[${typeNL(finding.type)} / ${impactNL(finding.impact)}] ${criteria}: ${beschrijving.slice(0, 100)}`;
 
   return [
     new Paragraph({
