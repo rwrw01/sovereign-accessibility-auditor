@@ -13,6 +13,7 @@ import { screenreaderRoutes } from "./routes/screenreader.js";
 import { cognitiveRoutes } from "./routes/cognitive.js";
 import { authRoutes } from "./routes/auth.js";
 import { quickScanRoutes } from "./routes/quick-scan.js";
+import { reportRoutes } from "./routes/report.js";
 import { registerAuthHook } from "./middleware/auth.js";
 
 const envToLogger: Record<string, object | boolean> = {
@@ -99,6 +100,7 @@ await server.register(a11yTreeRoutes);
 await server.register(touchTargetsRoutes);
 await server.register(screenreaderRoutes);
 await server.register(cognitiveRoutes);
+await server.register(reportRoutes);
 
 // Graceful shutdown
 for (const signal of ["SIGTERM", "SIGINT"] as const) {

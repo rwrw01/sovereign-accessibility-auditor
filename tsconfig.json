@@ -28,7 +28,8 @@
     { "path": "packages/scanners/a11y-tree" },
     { "path": "packages/scanners/touch-targets" },
     { "path": "packages/scanners/screenreader" },
-    { "path": "packages/scanners/cognitive" }
+    { "path": "packages/scanners/cognitive" },
+    { "path": "packages/report-generator" }
   ],
   "exclude": ["node_modules", "dist", ".turbo"]
 }
