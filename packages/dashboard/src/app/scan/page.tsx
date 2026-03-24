@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { apiClient } from "../../lib/api-client";
 import { ScanProgress, CompletionBanner, TimeoutBanner, LAYER_LABELS, LAYER_ENDPOINTS } from "./ScanProgress";
 import type { ScanLayer, LayerState } from "./ScanProgress";
@@ -8,6 +8,29 @@ import { FindingsTable } from "./FindingsTable";
 import type { Finding } from "./FindingsTable";
 
 type PageStatus = "idle" | "submitting" | "polling" | "done" | "error" | "timeout";
+
+interface ScanSession {
+  auditId: string;
+  url: string;
+  layers: ScanLayer[];
+  scanIds: Record<string, string>;
+  startTime: number;
+}
+
+function saveScanSession(session: ScanSession) {
+  try { sessionStorage.setItem("saa-scan-session", JSON.stringify(session)); } catch { /* noop */ }
+}
+
+function loadScanSession(): ScanSession | null {
+  try {
+    const raw = sessionStorage.getItem("saa-scan-session");
+    return raw ? JSON.parse(raw) as ScanSession : null;
+  } catch { return null; }
+}
+
+function clearScanSession() {
+  try { sessionStorage.removeItem("saa-scan-session"); } catch { /* noop */ }
+}
 
 function initLayerStates(layers: ScanLayer[]): Record<string, LayerState> {
   const states: Record<string, LayerState> = {};
@@ -34,14 +57,15 @@ export default function ScanPage() {
 
   const isRunning = pageStatus === "submitting" || pageStatus === "polling";
 
-  const stopTimers = () => {
+  const stopTimers = useCallback(() => {
     if (pollRef.current) clearInterval(pollRef.current);
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     if (elapsedRef.current) clearInterval(elapsedRef.current);
-  };
+  }, []);
 
   const resetScan = () => {
     stopTimers();
+    clearScanSession();
     setPageStatus("idle");
     setAuditId(null);
     setLayerStates({});
@@ -50,6 +74,77 @@ export default function ScanPage() {
     setElapsedSec(0);
     setUrl("");
   };
+
+  // Resume a scan session after page refresh
+  const startPolling = useCallback((aid: string, layers: ScanLayer[], scanIds: Record<string, string>, startTime: number) => {
+    setAuditId(aid);
+    setPageStatus("polling");
+    const initialStates: Record<string, LayerState> = {};
+    for (const l of layers) {
+      initialStates[l] = { status: scanIds[l] ? "bezig" : "wachtend", scanId: scanIds[l] ?? null, findings: 0 };
+    }
+    setLayerStates(initialStates);
+    startTimeRef.current = startTime;
+
+    elapsedRef.current = setInterval(() => {
+      setElapsedSec(Math.floor((Date.now() - startTime) / 1000));
+    }, 1000);
+
+    timeoutRef.current = setTimeout(() => {
+      stopTimers();
+      clearScanSession();
+      setPageStatus("timeout");
+    }, Math.max(180_000 - (Date.now() - startTime), 10_000));
+
+    const activeLayers = layers.filter((l) => scanIds[l]);
+    const collected: Record<string, Finding[]> = {};
+
+    pollRef.current = setInterval(async () => {
+      const newStates: Record<string, LayerState> = {};
+      await Promise.all(
+        activeLayers.map(async (layer) => {
+          const sid = scanIds[layer];
+          if (!sid) return;
+          setLayerStates((prev) => {
+            const cur = prev[layer];
+            if (cur?.status === "voltooid" || cur?.status === "mislukt") newStates[layer] = cur;
+            return prev;
+          });
+          if (newStates[layer]) return;
+          try {
+            const pollRes = await apiClient(`/api/v1/audits/${aid}/${LAYER_ENDPOINTS[layer]}/${sid}`);
+            if (!pollRes.ok) return;
+            const pollData = (await pollRes.json()) as { status: string; result?: { findings: Finding[] } };
+            const mapped: LayerState["status"] = pollData.status === "voltooid" ? "voltooid" : pollData.status === "mislukt" ? "mislukt" : "bezig";
+            newStates[layer] = { status: mapped, scanId: sid, findings: pollData.result?.findings?.length ?? 0 };
+            if (mapped === "voltooid" && pollData.result?.findings) collected[layer] = pollData.result.findings;
+          } catch { /* transient */ }
+        }),
+      );
+      setLayerStates((prev) => {
+        const next = { ...prev, ...newStates };
+        const done = activeLayers.every((l) => next[l]?.status === "voltooid" || next[l]?.status === "mislukt");
+        if (done) {
+          stopTimers();
+          clearScanSession();
+          setAllFindings(Object.values(collected).flat());
+          setPageStatus("done");
+        }
+        return next;
+      });
+    }, 3000);
+  }, [stopTimers]);
+
+  // On mount: resume existing scan session
+  useEffect(() => {
+    const session = loadScanSession();
+    if (!session) return;
+    const elapsed = Date.now() - session.startTime;
+    if (elapsed > 180_000) { clearScanSession(); return; } // expired
+    setUrl(session.url);
+    setSelectedLayers(session.layers);
+    startPolling(session.auditId, session.layers, session.scanIds, session.startTime);
+  }, [startPolling]);
 
   const toggleLayer = (layer: ScanLayer) => {
     if (isRunning) return;
@@ -103,17 +198,6 @@ export default function ScanPage() {
         }
       }
 
-      setPageStatus("polling");
-
-      elapsedRef.current = setInterval(() => {
-        setElapsedSec(Math.floor((Date.now() - startTimeRef.current) / 1000));
-      }, 1000);
-
-      timeoutRef.current = setTimeout(() => {
-        stopTimers();
-        setPageStatus("timeout");
-      }, 180_000);
-
       const activeLayers = selectedLayers.filter((l) => scanIds[l]);
       if (activeLayers.length === 0) {
         stopTimers();
@@ -122,62 +206,11 @@ export default function ScanPage() {
         return;
       }
 
-      const collected: Record<string, Finding[]> = {};
+      // Persist session so page refresh can resume polling
+      saveScanSession({ auditId: aid, url, layers: selectedLayers, scanIds, startTime: startTimeRef.current });
 
-      pollRef.current = setInterval(async () => {
-        const newStates: Record<string, LayerState> = {};
-
-        await Promise.all(
-          activeLayers.map(async (layer) => {
-            const sid = scanIds[layer];
-            if (!sid) return;
-
-            // Read current status without triggering re-render
-            setLayerStates((prev) => {
-              const cur = prev[layer];
-              if (cur?.status === "voltooid" || cur?.status === "mislukt") {
-                newStates[layer] = cur;
-              }
-              return prev;
-            });
-
-            if (newStates[layer]) return; // already terminal
-
-            try {
-              const pollRes = await apiClient(`/api/v1/audits/${aid}/${LAYER_ENDPOINTS[layer]}/${sid}`);
-              if (!pollRes.ok) return;
-              const pollData = (await pollRes.json()) as {
-                status: string;
-                result?: { findings: Finding[]; totalDurationMs: number };
-              };
-              const mapped: LayerState["status"] =
-                pollData.status === "voltooid" ? "voltooid"
-                  : pollData.status === "mislukt" ? "mislukt"
-                    : "bezig";
-              const findingCount = pollData.result?.findings?.length ?? 0;
-              newStates[layer] = { status: mapped, scanId: sid, findings: findingCount };
-              if (mapped === "voltooid" && pollData.result?.findings) {
-                collected[layer] = pollData.result.findings;
-              }
-            } catch {
-              // keep existing state on transient error
-            }
-          }),
-        );
-
-        setLayerStates((prev) => {
-          const next = { ...prev, ...newStates };
-          const done = activeLayers.every(
-            (l) => next[l]?.status === "voltooid" || next[l]?.status === "mislukt",
-          );
-          if (done) {
-            stopTimers();
-            setAllFindings(Object.values(collected).flat());
-            setPageStatus("done");
-          }
-          return next;
-        });
-      }, 3000);
+      // Start polling all layers
+      startPolling(aid, selectedLayers, scanIds, startTimeRef.current);
     } catch (err) {
       stopTimers();
       setPageStatus("error");

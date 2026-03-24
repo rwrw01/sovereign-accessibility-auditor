@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { Queue } from "bullmq";
 import type { ScanJobPayload, EngineName } from "@saa/shared";
+import { createScanRow, completeScanRow, failScanRow } from "./scan-persistence.js";
 
 const BLOCKED_HOSTS = new Set([
   "localhost", "127.0.0.1", "0.0.0.0", "::1", "[::1]",
@@ -82,6 +83,18 @@ export async function scanRoutes(app: FastifyInstance): Promise<void> {
       removeOnFail: { count: 50 },
     });
 
+    try {
+      await createScanRow({
+        scanId,
+        auditId,
+        url: body.url,
+        viewport: body.viewport.name,
+        scannerLaag: "L1",
+      });
+    } catch (err) {
+      app.log.error({ err, scanId }, "Failed to persist scan row to PostgreSQL");
+    }
+
     return reply.status(202).send({
       scanId,
       jobId: job.id,
@@ -92,7 +105,7 @@ export async function scanRoutes(app: FastifyInstance): Promise<void> {
 
   app.get<{
     Params: { auditId: string; scanId: string };
-  }>("/api/v1/audits/:auditId/scans/:scanId", async (request, reply) => {
+  }>("/api/v1/audits/:auditId/scan/:scanId", async (request, reply) => {
     const auditId = uuidSchema.parse(request.params.auditId);
     const scanId = uuidSchema.parse(request.params.scanId);
 
@@ -107,6 +120,9 @@ export async function scanRoutes(app: FastifyInstance): Promise<void> {
     const progress = job.progress;
 
     if (state === "completed") {
+      completeScanRow(scanId, job.returnvalue).catch((err: unknown) => {
+        app.log.error({ err, scanId }, "Failed to persist completed scan result to PostgreSQL");
+      });
       return reply.send({
         scanId,
         status: "voltooid",
@@ -116,6 +132,9 @@ export async function scanRoutes(app: FastifyInstance): Promise<void> {
     }
 
     if (state === "failed") {
+      failScanRow(scanId, job.failedReason ?? "Onbekende fout").catch((err: unknown) => {
+        app.log.error({ err, scanId }, "Failed to persist failed scan state to PostgreSQL");
+      });
       return reply.send({
         scanId,
         status: "mislukt",

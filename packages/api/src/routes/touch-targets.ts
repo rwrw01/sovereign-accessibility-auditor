@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { Queue } from "bullmq";
 import type { L5ScanJobPayload } from "@saa/shared";
+import { createScanRow, completeScanRow, failScanRow } from "./scan-persistence.js";
 
 const REDIS_HOST = process.env["REDIS_HOST"] ?? "127.0.0.1";
 const REDIS_PORT = Number(process.env["REDIS_PORT"] ?? "6379");
@@ -54,6 +55,18 @@ export async function touchTargetsRoutes(app: FastifyInstance): Promise<void> {
       removeOnFail: { count: 50 },
     });
 
+    try {
+      await createScanRow({
+        scanId,
+        auditId,
+        url: body.url,
+        viewport: body.viewport.name,
+        scannerLaag: "L5",
+      });
+    } catch (err) {
+      app.log.error({ err, scanId }, "Failed to persist scan row to PostgreSQL");
+    }
+
     return reply.status(202).send({
       scanId,
       jobId: job.id,
@@ -79,6 +92,9 @@ export async function touchTargetsRoutes(app: FastifyInstance): Promise<void> {
     const progress = job.progress;
 
     if (state === "completed") {
+      completeScanRow(scanId, job.returnvalue).catch((err: unknown) => {
+        app.log.error({ err, scanId }, "Failed to persist completed scan result to PostgreSQL");
+      });
       return reply.send({
         scanId,
         status: "voltooid",
@@ -88,6 +104,9 @@ export async function touchTargetsRoutes(app: FastifyInstance): Promise<void> {
     }
 
     if (state === "failed") {
+      failScanRow(scanId, job.failedReason ?? "Onbekende fout").catch((err: unknown) => {
+        app.log.error({ err, scanId }, "Failed to persist failed scan state to PostgreSQL");
+      });
       return reply.send({
         scanId,
         status: "mislukt",
