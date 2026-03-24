@@ -1,362 +1,183 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Play, FileText, Settings } from "lucide-react";
 import { apiClient } from "../lib/api-client";
 
-// No hardcoded audit ID — we create one via /api/v1/quick-scan
-
-type ScanLayer = "L1" | "L2" | "L3" | "L4" | "L5" | "L6" | "L7";
-
-interface ScanJob {
-  layer: ScanLayer;
-  scanId: string;
-  status: "wachtend" | "actief" | "voltooid" | "mislukt";
-  progress: number;
-  findings: number;
-  duration: number;
-  error?: string;
+interface Audit {
+  id: string;
+  naam: string;
+  doelUrls: string[] | string;
+  status: string;
+  aangemaaktOp: string;
 }
 
-const LAYER_ENDPOINTS: Record<ScanLayer, string> = {
-  L1: "scan",
-  L2: "visual-regression",
-  L3: "behavioral",
-  L4: "a11y-tree",
-  L5: "touch-targets",
-  L6: "screenreader",
-  L7: "cognitive",
-};
+function resolveUrl(doelUrls: string[] | string): string {
+  if (Array.isArray(doelUrls)) return doelUrls[0] ?? "";
+  return doelUrls;
+}
 
-const LAYER_LABELS: Record<ScanLayer, string> = {
-  L1: "Multi-engine (axe + IBM)",
-  L2: "Visuele regressie",
-  L3: "Gedragstests",
-  L4: "A11y tree diff",
-  L5: "Touch targets",
-  L6: "Screenreader simulatie",
-  L7: "Cognitieve analyse",
-};
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString("nl-NL", { day: "numeric", month: "long", year: "numeric" });
+}
+
+function statusLabel(status: string): string {
+  switch (status) {
+    case "voltooid": return "Afgerond";
+    case "actief": return "Bezig";
+    case "mislukt": return "Mislukt";
+    default: return status;
+  }
+}
 
 export default function DashboardPage() {
-  const router = useRouter();
-  const [url, setUrl] = useState("https://example.com");
-  const [selectedLayers, setSelectedLayers] = useState<ScanLayer[]>(["L1", "L6", "L7"]);
-  const [scanning, setScanning] = useState(false);
-  const [scans, setScans] = useState<ScanJob[]>([]);
-
-  const toggleLayer = (layer: ScanLayer) => {
-    setSelectedLayers((prev) =>
-      prev.includes(layer) ? prev.filter((l) => l !== layer) : [...prev, layer],
-    );
-  };
-
-  const [auditId, setAuditId] = useState<string | null>(null);
-
-  const startScans = async () => {
-    setScanning(true);
-    const newScans: ScanJob[] = [];
-
-    // First create a quick audit
-    let currentAuditId = auditId;
-    if (!currentAuditId) {
-      try {
-        const qsRes = await apiClient("/api/v1/quick-scan", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url, layers: selectedLayers }),
-        });
-        if (!qsRes.ok) {
-          const errData = await qsRes.json().catch(() => ({ error: qsRes.statusText }));
-          throw new Error((errData as { error?: string }).error ?? `HTTP ${qsRes.status}`);
-        }
-        const qsData = (await qsRes.json()) as { auditId: string };
-        currentAuditId = qsData.auditId;
-        setAuditId(currentAuditId);
-      } catch (err) {
-        setScanning(false);
-        setScans([{
-          layer: selectedLayers[0] ?? "L1",
-          scanId: "",
-          status: "mislukt",
-          progress: 0,
-          findings: 0,
-          duration: 0,
-          error: err instanceof Error ? err.message : String(err),
-        }]);
-        return;
-      }
-    }
-
-    for (const layer of selectedLayers) {
-      try {
-        const endpoint = LAYER_ENDPOINTS[layer];
-        const res = await apiClient(`/api/v1/audits/${currentAuditId}/${endpoint}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            url,
-            viewport: { name: "desktop", w: 1280, h: 1024 },
-          }),
-        });
-
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({ error: res.statusText }));
-          throw new Error((errData as { error?: string }).error ?? `HTTP ${res.status}`);
-        }
-
-        const data = (await res.json()) as { scanId: string };
-        newScans.push({
-          layer,
-          scanId: data.scanId,
-          status: "wachtend",
-          progress: 0,
-          findings: 0,
-          duration: 0,
-        });
-      } catch (err) {
-        newScans.push({
-          layer,
-          scanId: "",
-          status: "mislukt",
-          progress: 0,
-          findings: 0,
-          duration: 0,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
-    }
-
-    setScans(newScans);
-  };
-
-  const pollScans = useCallback(async () => {
-    const updated = await Promise.all(
-      scans.map(async (scan) => {
-        if (scan.status === "voltooid" || scan.status === "mislukt" || !scan.scanId) return scan;
-
-        try {
-          const endpoint = LAYER_ENDPOINTS[scan.layer];
-          const res = await apiClient(
-            `/api/v1/audits/${auditId}/${endpoint}/${scan.scanId}`,
-          );
-          if (!res.ok) return scan;
-
-          const data = (await res.json()) as {
-            status: string;
-            progress: number;
-            result?: { findings: unknown[]; totalDurationMs: number };
-            error?: string;
-          };
-
-          return {
-            ...scan,
-            status: data.status as ScanJob["status"],
-            progress: typeof data.progress === "number" ? data.progress : scan.progress,
-            findings: data.result?.findings?.length ?? scan.findings,
-            duration: data.result?.totalDurationMs ?? scan.duration,
-            error: data.error ?? scan.error,
-          };
-        } catch {
-          return scan;
-        }
-      }),
-    );
-
-    setScans(updated);
-    if (updated.every((s) => s.status === "voltooid" || s.status === "mislukt")) {
-      setScanning(false);
-    }
-  }, [scans]);
+  const [recentAudits, setRecentAudits] = useState<Audit[]>([]);
+  const [loadingAudits, setLoadingAudits] = useState(true);
 
   useEffect(() => {
-    if (!scanning || scans.length === 0) return;
-    const interval = setInterval(pollScans, 2000);
-    return () => clearInterval(interval);
-  }, [scanning, scans, pollScans]);
-
-  const totalFindings = scans.reduce((sum, s) => sum + s.findings, 0);
-  const completedScans = scans.filter((s) => s.status === "voltooid").length;
+    apiClient("/api/v1/audits")
+      .then(async (res) => {
+        if (res.ok) {
+          const data = (await res.json()) as Audit[];
+          // Show latest 3
+          setRecentAudits(data.slice(0, 3));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoadingAudits(false));
+  }, []);
 
   return (
     <>
-      {/* Tab Bar */}
       <div className="vsc-tabbar">
-        <span className="vsc-tab" aria-current="true">
-          Welkom
-        </span>
+        <span className="vsc-tab" aria-current="true">Welkom</span>
       </div>
 
-      {/* Editor Content */}
       <div className="vsc-editor-content">
-        <h1 style={{ fontSize: "1.5rem", fontWeight: 300, marginBottom: 24, color: "var(--vsc-fg-active)" }}>
-          Sovereign Accessibility Auditor
+        {/* Page heading */}
+        <h1 style={{ fontSize: "1.25rem", fontWeight: 400, marginBottom: 6, color: "var(--vsc-fg-active)" }}>
+          Welkom bij de Toegankelijkheidsauditor
         </h1>
+        <p style={{ color: "var(--vsc-fg-secondary)", fontSize: "0.9rem", marginBottom: 28, maxWidth: 560 }}>
+          Controleer automatisch of uw gemeentewebsite voldoet aan de WCAG 2.2 AA-norm en de
+          Europese toegankelijkheidswetgeving (EN 301 549).
+        </p>
 
-        {scans.length === 0 ? (
-          /* Welcome view */
-          <div className="welcome-grid">
-            <div className="welcome-section">
-              <h2>Beginnen</h2>
-              <button className="welcome-link" onClick={() => router.push("/scan")}>
-                <Play size={14} /> Nieuwe scan starten
-              </button>
-              <button className="welcome-link" onClick={() => router.push("/rapportage")}>
-                <FileText size={14} /> Rapport genereren
-              </button>
-              <button className="welcome-link" onClick={() => router.push("/instellingen")}>
-                <Settings size={14} /> Instellingen
-              </button>
-            </div>
-            <div className="welcome-section">
-              <h2>Snelle scan</h2>
-              <div className="form-group">
-                <label htmlFor="quick-url">URL</label>
-                <input
-                  id="quick-url"
-                  type="url"
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  placeholder="https://www.gemeente.nl"
-                />
-              </div>
-              <fieldset style={{ border: "none", padding: 0, marginBottom: 12 }}>
-                <legend style={{ fontSize: "0.85rem", marginBottom: 8, color: "var(--vsc-fg)" }}>
-                  Scanlagen
-                </legend>
-                <div className="layer-grid">
-                  {(Object.keys(LAYER_LABELS) as ScanLayer[]).map((layer) => (
-                    <label key={layer} className="layer-checkbox">
-                      <input
-                        type="checkbox"
-                        checked={selectedLayers.includes(layer)}
-                        onChange={() => toggleLayer(layer)}
-                      />
-                      <strong>{layer}</strong> {LAYER_LABELS[layer]}
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
-              <button
-                className="btn-primary"
-                onClick={startScans}
-                disabled={scanning || !url || selectedLayers.length === 0}
-                type="button"
-                style={{ width: "auto" }}
-              >
-                {scanning ? "Bezig..." : "Scan starten"}
-              </button>
-            </div>
-          </div>
-        ) : (
-          /* Scan results view */
-          <div aria-live="polite" aria-atomic="false">
-            {auditId && (
-              <div style={{ marginBottom: 16, padding: "8px 12px", background: "var(--vsc-bg-sidebar)", border: "1px solid var(--vsc-border)", borderRadius: "var(--vsc-radius)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: "0.85rem" }}>
-                  {scanning ? "Scan loopt..." : "Scan afgerond"}
-                </span>
-                <Link href={`/audits/${auditId}`} style={{ color: "var(--vsc-fg-link)", fontSize: "0.85rem" }}>
-                  Bekijk audit details →
-                </Link>
-              </div>
-            )}
-            <div className="stats-grid" role="region" aria-label="Scan statistieken">
-              <div className="stat-card">
-                <div className="stat-value">{totalFindings}</div>
-                <div className="stat-label">Bevindingen</div>
-              </div>
-              <div className="stat-card">
-                <div className="stat-value">{completedScans}/{scans.length}</div>
-                <div className="stat-label">Scans voltooid</div>
-              </div>
-              <div className="stat-card">
-                <div className="stat-value">
-                  {scans.filter((s) => s.status === "voltooid").reduce((sum, s) => sum + s.duration, 0)}ms
-                </div>
-                <div className="stat-label">Totale duur</div>
-              </div>
-            </div>
-
-            <div className="table-container">
-              <table>
-                <thead>
-                  <tr>
-                    <th scope="col">Laag</th>
-                    <th scope="col">Status</th>
-                    <th scope="col">Voortgang</th>
-                    <th scope="col">Bevindingen</th>
-                    <th scope="col">Duur</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {scans.map((scan) => (
-                    <tr key={scan.layer}>
-                      <td>
-                        <strong>{scan.layer}</strong>
-                        <br />
-                        <span style={{ fontSize: "0.75rem", color: "var(--vsc-fg-secondary)" }}>
-                          {LAYER_LABELS[scan.layer]}
-                        </span>
-                      </td>
-                      <td>
-                        <span className={`badge badge-status-${scan.status}`}>{scan.status}</span>
-                        {scan.error && (
-                          <div style={{ fontSize: "0.75rem", color: "var(--vsc-error)", marginTop: 4 }}>
-                            {scan.error}
-                          </div>
-                        )}
-                      </td>
-                      <td>
-                        <div className="progress-bar" role="progressbar" aria-valuenow={scan.progress} aria-valuemin={0} aria-valuemax={100} aria-label={`Voortgang ${scan.layer} ${LAYER_LABELS[scan.layer]}`}>
-                          <div className="progress-bar-fill" style={{ width: `${scan.progress}%` }} />
-                        </div>
-                      </td>
-                      <td>{scan.findings}</td>
-                      <td>{scan.duration > 0 ? `${scan.duration}ms` : "-"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Bottom Panel */}
-      {scans.length > 0 && (
-        <div className="vsc-panel" style={{ height: "var(--vsc-panel-h)" }}>
-          <div className="vsc-panel-tabs">
-            <span className="vsc-panel-tab" aria-current="true">
-              Bevindingen
-            </span>
-          </div>
-          <div className="vsc-panel-content" role="tabpanel">
-            {scans
-              .filter((s) => s.status === "voltooid")
-              .map((s) => (
-                <div key={s.layer} className="log-line">
-                  <span className="log-success">[{s.layer}]</span>{" "}
-                  {s.findings} bevindingen gevonden in {s.duration}ms
-                </div>
-              ))}
-            {scans
-              .filter((s) => s.status === "mislukt")
-              .map((s) => (
-                <div key={s.layer} className="log-line">
-                  <span className="log-error">[{s.layer}]</span> {s.error ?? "Mislukt"}
-                </div>
-              ))}
-            {scanning && (
-              <div className="log-line">
-                <span className="log-info">[scan]</span> Bezig met scannen...
-              </div>
-            )}
-          </div>
+        {/* Action cards */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12, maxWidth: 680, marginBottom: 32 }}>
+          <ActionCard
+            href="/scan"
+            icon="+"
+            title="Nieuwe scan starten"
+            description="Voer een toegankelijkheidscontrole uit op een website"
+            primary
+          />
+          <ActionCard
+            href="/audits"
+            icon="\u2630"
+            title="Recente audits bekijken"
+            description="Bekijk eerder uitgevoerde controles en resultaten"
+          />
+          <ActionCard
+            href="/rapportage"
+            icon="\u2193"
+            title="Rapport downloaden"
+            description="Exporteer een auditrapport als PDF of JSON"
+          />
         </div>
-      )}
+
+        {/* Recent audits summary */}
+        <section aria-labelledby="recente-audits-heading">
+          <h2 id="recente-audits-heading" style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--vsc-fg-active)", marginBottom: 10 }}>
+            Recente audits
+          </h2>
+
+          {loadingAudits ? (
+            <p style={{ color: "var(--vsc-fg-secondary)", fontSize: "0.85rem" }} role="status">
+              Laden...
+            </p>
+          ) : recentAudits.length === 0 ? (
+            <div style={{ padding: "14px 16px", background: "var(--vsc-bg-sidebar)", border: "1px solid var(--vsc-border)", borderRadius: "var(--vsc-radius)", maxWidth: 480 }}>
+              <p style={{ color: "var(--vsc-fg-secondary)", fontSize: "0.85rem", marginBottom: 6 }}>
+                Er zijn nog geen audits uitgevoerd.
+              </p>
+              <Link href="/scan" style={{ color: "var(--vsc-fg-link)", fontSize: "0.85rem" }}>
+                Start uw eerste scan &#8594;
+              </Link>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, maxWidth: 640 }}>
+              {recentAudits.map((audit) => (
+                <Link
+                  key={audit.id}
+                  href={`/audits/${audit.id}`}
+                  style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: "var(--vsc-bg-sidebar)", border: "1px solid var(--vsc-border)", borderRadius: "var(--vsc-radius)", textDecoration: "none", color: "inherit" }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: "0.85rem", color: "var(--vsc-fg-active)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {audit.naam || resolveUrl(audit.doelUrls) || "Naamloos"}
+                    </div>
+                    <div style={{ fontSize: "0.75rem", color: "var(--vsc-fg-secondary)", marginTop: 2 }}>
+                      {formatDate(audit.aangemaaktOp)}
+                      {resolveUrl(audit.doelUrls) && (
+                        <span style={{ marginLeft: 8 }}>{resolveUrl(audit.doelUrls)}</span>
+                      )}
+                    </div>
+                  </div>
+                  <span className={`badge ${audit.status === "mislukt" ? "badge-error" : audit.status === "voltooid" ? "" : "badge-notice"}`} style={{ fontSize: "0.7rem", flexShrink: 0 }}>
+                    {statusLabel(audit.status)}
+                  </span>
+                  <span style={{ color: "var(--vsc-fg-link)", fontSize: "0.8rem", flexShrink: 0 }}>
+                    &#8594;
+                  </span>
+                </Link>
+              ))}
+              <Link href="/audits" style={{ fontSize: "0.8rem", color: "var(--vsc-fg-link)", marginTop: 4, alignSelf: "flex-start" }}>
+                Alle audits bekijken &#8594;
+              </Link>
+            </div>
+          )}
+        </section>
+      </div>
     </>
+  );
+}
+
+interface ActionCardProps {
+  href: string;
+  icon: string;
+  title: string;
+  description: string;
+  primary?: boolean;
+}
+
+function ActionCard({ href, icon, title, description, primary = false }: ActionCardProps) {
+  return (
+    <Link
+      href={href}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+        padding: "14px 16px",
+        background: primary ? "var(--vsc-bg-selection)" : "var(--vsc-bg-sidebar)",
+        border: `1px solid ${primary ? "var(--vsc-border-active)" : "var(--vsc-border)"}`,
+        borderRadius: "var(--vsc-radius)",
+        textDecoration: "none",
+        color: "inherit",
+        cursor: "pointer",
+      }}
+    >
+      <span style={{ fontSize: "1.2rem", color: primary ? "var(--vsc-fg-active)" : "var(--vsc-fg-link)" }} aria-hidden="true">
+        {icon}
+      </span>
+      <span style={{ fontSize: "0.88rem", fontWeight: 600, color: "var(--vsc-fg-active)" }}>
+        {title}
+      </span>
+      <span style={{ fontSize: "0.78rem", color: "var(--vsc-fg-secondary)", lineHeight: 1.4 }}>
+        {description}
+      </span>
+    </Link>
   );
 }

@@ -1,175 +1,193 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
+import { useState, useRef } from "react";
 import { apiClient } from "../../lib/api-client";
+import { ScanProgress, CompletionBanner, TimeoutBanner, LAYER_LABELS, LAYER_ENDPOINTS } from "./ScanProgress";
+import type { ScanLayer, LayerState } from "./ScanProgress";
+import { FindingsTable } from "./FindingsTable";
+import type { Finding } from "./FindingsTable";
 
-interface Finding {
-  check: string;
-  type: "error" | "warning" | "notice";
-  wcagCriteria: string[];
-  wcagLevel: string;
-  selector: string;
-  context: string;
-  message: string;
-  impact: string;
-  confidence: number;
+type PageStatus = "idle" | "submitting" | "polling" | "done" | "error" | "timeout";
+
+function initLayerStates(layers: ScanLayer[]): Record<string, LayerState> {
+  const states: Record<string, LayerState> = {};
+  for (const l of layers) {
+    states[l] = { status: "wachtend", scanId: null, findings: 0 };
+  }
+  return states;
 }
-
-interface ScanResult {
-  scanId: string;
-  findings: Finding[];
-  totalDurationMs: number;
-}
-
-type ScanLayer = "L1" | "L2" | "L3" | "L4" | "L5" | "L6" | "L7";
-type ScanStatus = "idle" | "submitting" | "polling" | "done" | "error";
-
-const LAYER_ENDPOINTS: Record<ScanLayer, string> = {
-  L1: "scan",
-  L2: "visual-regression",
-  L3: "behavioral",
-  L4: "a11y-tree",
-  L5: "touch-targets",
-  L6: "screenreader",
-  L7: "cognitive",
-};
-
-const LAYER_LABELS: Record<ScanLayer, string> = {
-  L1: "Multi-engine (axe + IBM)",
-  L2: "Visuele regressie",
-  L3: "Gedragstests",
-  L4: "A11y tree diff",
-  L5: "Touch targets",
-  L6: "Screenreader simulatie",
-  L7: "Cognitieve analyse",
-};
 
 export default function ScanPage() {
-  const [url, setUrl] = useState("https://example.com");
+  const [url, setUrl] = useState("");
   const [selectedLayers, setSelectedLayers] = useState<ScanLayer[]>(["L1", "L6", "L7"]);
-  const [status, setStatus] = useState<ScanStatus>("idle");
-  const [result, setResult] = useState<ScanResult | null>(null);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [pageStatus, setPageStatus] = useState<PageStatus>("idle");
   const [auditId, setAuditId] = useState<string | null>(null);
-  const [layerStatuses, setLayerStatuses] = useState<Record<string, string>>({});
+  const [layerStates, setLayerStates] = useState<Record<string, LayerState>>({});
+  const [allFindings, setAllFindings] = useState<Finding[]>([]);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [elapsedSec, setElapsedSec] = useState(0);
+
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startTimeRef = useRef(0);
+
+  const isRunning = pageStatus === "submitting" || pageStatus === "polling";
+
+  const stopTimers = () => {
+    if (pollRef.current) clearInterval(pollRef.current);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    if (elapsedRef.current) clearInterval(elapsedRef.current);
+  };
+
+  const resetScan = () => {
+    stopTimers();
+    setPageStatus("idle");
+    setAuditId(null);
+    setLayerStates({});
+    setAllFindings([]);
+    setErrorMsg(null);
+    setElapsedSec(0);
+    setUrl("");
+  };
 
   const toggleLayer = (layer: ScanLayer) => {
+    if (isRunning) return;
     setSelectedLayers((prev) =>
       prev.includes(layer) ? prev.filter((l) => l !== layer) : [...prev, layer],
     );
   };
 
-  const selectAll = () => setSelectedLayers(Object.keys(LAYER_LABELS) as ScanLayer[]);
-
   const runScan = async () => {
-    if (selectedLayers.length === 0) return;
-    setStatus("submitting");
-    setResult(null);
+    if (selectedLayers.length === 0 || !url) return;
+
+    setPageStatus("submitting");
     setErrorMsg(null);
     setAuditId(null);
-    setLayerStatuses({});
+    setAllFindings([]);
+    setElapsedSec(0);
+    startTimeRef.current = Date.now();
 
     try {
-      // Create quick audit
       const qsRes = await apiClient("/api/v1/quick-scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url, layers: selectedLayers }),
       });
-
       if (!qsRes.ok) {
         const errData = await qsRes.json().catch(() => ({ error: qsRes.statusText }));
         throw new Error((errData as { error?: string }).error ?? `HTTP ${qsRes.status}`);
       }
+      const { auditId: aid } = (await qsRes.json()) as { auditId: string };
+      setAuditId(aid);
+      setLayerStates(initLayerStates(selectedLayers));
 
-      const qsData = (await qsRes.json()) as { auditId: string };
-      setAuditId(qsData.auditId);
-
-      // Start ALL selected layers
-      const initialStatuses: Record<string, string> = {};
-      for (const layer of selectedLayers) {
-        initialStatuses[layer] = "versturen...";
-      }
-      setLayerStatuses(initialStatuses);
-
+      // Start each layer scan
       const scanIds: Record<string, string> = {};
       for (const layer of selectedLayers) {
-        const endpoint = LAYER_ENDPOINTS[layer];
         try {
-          const res = await apiClient(`/api/v1/audits/${qsData.auditId}/${endpoint}`, {
+          const res = await apiClient(`/api/v1/audits/${aid}/${LAYER_ENDPOINTS[layer]}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              url,
-              viewport: { name: "desktop", w: 1280, h: 1024 },
-            }),
+            body: JSON.stringify({ url, viewport: { name: "desktop", w: 1280, h: 1024 } }),
           });
-
           if (!res.ok) {
-            setLayerStatuses((prev) => ({ ...prev, [layer]: "mislukt" }));
+            setLayerStates((p) => ({ ...p, [layer]: { ...p[layer]!, status: "mislukt" } }));
             continue;
           }
-
-          const data = (await res.json()) as { scanId: string };
-          scanIds[layer] = data.scanId;
-          setLayerStatuses((prev) => ({ ...prev, [layer]: "in wachtrij" }));
+          const { scanId } = (await res.json()) as { scanId: string };
+          scanIds[layer] = scanId;
+          setLayerStates((p) => ({ ...p, [layer]: { status: "bezig", scanId, findings: 0 } }));
         } catch {
-          setLayerStatuses((prev) => ({ ...prev, [layer]: "mislukt" }));
+          setLayerStates((p) => ({ ...p, [layer]: { ...p[layer]!, status: "mislukt" } }));
         }
       }
 
-      setStatus("polling");
+      setPageStatus("polling");
 
-      // Poll first layer for result (others visible in audit detail)
-      const firstLayer = selectedLayers[0]!;
-      const firstScanId = scanIds[firstLayer];
-      if (!firstScanId) {
-        setStatus("error");
-        setErrorMsg("Geen scan kon worden gestart");
+      elapsedRef.current = setInterval(() => {
+        setElapsedSec(Math.floor((Date.now() - startTimeRef.current) / 1000));
+      }, 1000);
+
+      timeoutRef.current = setTimeout(() => {
+        stopTimers();
+        setPageStatus("timeout");
+      }, 180_000);
+
+      const activeLayers = selectedLayers.filter((l) => scanIds[l]);
+      if (activeLayers.length === 0) {
+        stopTimers();
+        setPageStatus("error");
+        setErrorMsg("Geen enkele controle kon worden gestart. Controleer of de server bereikbaar is.");
         return;
       }
 
-      let attempts = 0;
-      const poll = async () => {
-        attempts++;
-        if (attempts > 60) {
-          setStatus("done");
-          return;
-        }
+      const collected: Record<string, Finding[]> = {};
 
-        const endpoint = LAYER_ENDPOINTS[firstLayer];
-        const pollRes = await apiClient(
-          `/api/v1/audits/${qsData.auditId}/${endpoint}/${firstScanId}`,
+      pollRef.current = setInterval(async () => {
+        const newStates: Record<string, LayerState> = {};
+
+        await Promise.all(
+          activeLayers.map(async (layer) => {
+            const sid = scanIds[layer];
+            if (!sid) return;
+
+            // Read current status without triggering re-render
+            setLayerStates((prev) => {
+              const cur = prev[layer];
+              if (cur?.status === "voltooid" || cur?.status === "mislukt") {
+                newStates[layer] = cur;
+              }
+              return prev;
+            });
+
+            if (newStates[layer]) return; // already terminal
+
+            try {
+              const pollRes = await apiClient(`/api/v1/audits/${aid}/${LAYER_ENDPOINTS[layer]}/${sid}`);
+              if (!pollRes.ok) return;
+              const pollData = (await pollRes.json()) as {
+                status: string;
+                result?: { findings: Finding[]; totalDurationMs: number };
+              };
+              const mapped: LayerState["status"] =
+                pollData.status === "voltooid" ? "voltooid"
+                  : pollData.status === "mislukt" ? "mislukt"
+                    : "bezig";
+              const findingCount = pollData.result?.findings?.length ?? 0;
+              newStates[layer] = { status: mapped, scanId: sid, findings: findingCount };
+              if (mapped === "voltooid" && pollData.result?.findings) {
+                collected[layer] = pollData.result.findings;
+              }
+            } catch {
+              // keep existing state on transient error
+            }
+          }),
         );
 
-        if (!pollRes.ok) { setTimeout(poll, 3000); return; }
-
-        const pollData = (await pollRes.json()) as {
-          status: string;
-          result?: ScanResult;
-          error?: string;
-        };
-
-        setLayerStatuses((prev) => ({ ...prev, [firstLayer]: pollData.status }));
-
-        if (pollData.status === "voltooid" && pollData.result) {
-          setResult(pollData.result);
-          setStatus("done");
-        } else if (pollData.status === "mislukt") {
-          setStatus("error");
-          setErrorMsg(pollData.error ?? "Scan mislukt");
-        } else {
-          setTimeout(poll, 3000);
-        }
-      };
-
-      setTimeout(poll, 3000);
+        setLayerStates((prev) => {
+          const next = { ...prev, ...newStates };
+          const done = activeLayers.every(
+            (l) => next[l]?.status === "voltooid" || next[l]?.status === "mislukt",
+          );
+          if (done) {
+            stopTimers();
+            setAllFindings(Object.values(collected).flat());
+            setPageStatus("done");
+          }
+          return next;
+        });
+      }, 3000);
     } catch (err) {
-      setStatus("error");
+      stopTimers();
+      setPageStatus("error");
       setErrorMsg(err instanceof Error ? err.message : String(err));
     }
   };
+
+  const completedCount = Object.values(layerStates).filter(
+    (s) => s.status === "voltooid" || s.status === "mislukt",
+  ).length;
 
   return (
     <>
@@ -178,143 +196,103 @@ export default function ScanPage() {
       </div>
 
       <div className="vsc-editor-content">
-        <h1 style={{ fontSize: "1.1rem", marginBottom: 16, color: "var(--vsc-fg-active)" }}>
-          Nieuwe scan
+        <h1 style={{ fontSize: "1.1rem", marginBottom: 6, color: "var(--vsc-fg-active)" }}>
+          Nieuwe toegankelijkheidsscan
         </h1>
+        <p style={{ color: "var(--vsc-fg-secondary)", fontSize: "0.85rem", marginBottom: 20 }}>
+          Vul het adres van de website in en kies welke controles u wilt uitvoeren.
+        </p>
 
-        <div style={{ maxWidth: 600 }}>
+        <div style={{ maxWidth: 640 }}>
           <div className="form-group">
-            <label htmlFor="scan-url">URL</label>
+            <label htmlFor="scan-url">Website-adres</label>
             <input
               id="scan-url"
               type="url"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://athide.nl"
-              disabled={status === "submitting" || status === "polling"}
+              placeholder="https://www.uwgemeente.nl"
+              disabled={isRunning}
+              aria-describedby="url-hint"
             />
+            <span id="url-hint" style={{ fontSize: "0.75rem", color: "var(--vsc-fg-secondary)", marginTop: 4, display: "block" }}>
+              Voer het volledige adres in, inclusief https://
+            </span>
           </div>
 
-          <fieldset style={{ border: "none", padding: 0, marginBottom: 12 }}>
-            <legend style={{ fontSize: "0.85rem", marginBottom: 8, color: "var(--vsc-fg)" }}>
-              Scanlagen
+          <fieldset style={{ border: "none", padding: 0, marginBottom: 16 }}>
+            <legend style={{ fontSize: "0.85rem", fontWeight: 600, marginBottom: 4, color: "var(--vsc-fg-active)", display: "flex", alignItems: "center", gap: 8 }}>
+              Controles
               <button
                 type="button"
-                onClick={selectAll}
-                style={{
-                  marginLeft: 12,
-                  background: "none",
-                  border: "1px solid var(--vsc-border)",
-                  color: "var(--vsc-link)",
-                  cursor: "pointer",
-                  fontSize: "0.75rem",
-                  padding: "2px 8px",
-                  borderRadius: 3,
-                }}
+                onClick={() => { if (!isRunning) setSelectedLayers(Object.keys(LAYER_LABELS) as ScanLayer[]); }}
+                disabled={isRunning}
+                style={{ background: "none", border: "1px solid var(--vsc-border)", color: "var(--vsc-fg-link)", cursor: "pointer", fontSize: "0.75rem", padding: "2px 8px", borderRadius: 3 }}
               >
-                Selecteer alle
+                Alle selecteren
               </button>
             </legend>
+            <p style={{ fontSize: "0.75rem", color: "var(--vsc-fg-secondary)", marginBottom: 10 }}>
+              Aanbevolen: selecteer minimaal Automatische controle, Voorleessoftware en Leesbaarheid.
+            </p>
             <div className="layer-grid">
               {(Object.keys(LAYER_LABELS) as ScanLayer[]).map((layer) => (
-                <label key={layer} className="layer-checkbox">
+                <label key={layer} className="layer-checkbox" title={LAYER_LABELS[layer].beschrijving}>
                   <input
                     type="checkbox"
                     checked={selectedLayers.includes(layer)}
                     onChange={() => toggleLayer(layer)}
-                    disabled={status === "submitting" || status === "polling"}
+                    disabled={isRunning}
                   />
-                  <strong>{layer}</strong> {LAYER_LABELS[layer]}
+                  <span>
+                    <strong style={{ color: "var(--vsc-fg-active)" }}>{LAYER_LABELS[layer].naam}</strong>
+                    <span style={{ display: "block", fontSize: "0.75rem", color: "var(--vsc-fg-secondary)", marginTop: 2 }}>
+                      {LAYER_LABELS[layer].beschrijving}
+                    </span>
+                  </span>
                 </label>
               ))}
             </div>
           </fieldset>
 
-          <button
-            className="btn-primary"
-            onClick={runScan}
-            disabled={status === "submitting" || status === "polling" || selectedLayers.length === 0}
-            type="button"
-            style={{ width: "auto" }}
-          >
-            {status === "submitting"
-              ? "Versturen..."
-              : status === "polling"
-                ? "Wachten op resultaat..."
-                : `Scan starten (${selectedLayers.length} ${selectedLayers.length === 1 ? "laag" : "lagen"})`}
-          </button>
+          {pageStatus === "done"
+            ? <button className="btn-primary" onClick={resetScan} type="button">Nieuwe scan starten</button>
+            : <button className="btn-primary" onClick={runScan} disabled={isRunning || selectedLayers.length === 0 || !url} type="button">
+                {pageStatus === "submitting" ? "Scan voorbereiden..."
+                  : pageStatus === "polling" ? "Bezig met scannen..."
+                    : `Scan starten (${selectedLayers.length} ${selectedLayers.length === 1 ? "controle" : "controles"})`}
+              </button>
+          }
         </div>
 
-        {/* Audit link + layer status */}
-        {auditId && (
-          <div style={{ marginTop: 16, maxWidth: 600, padding: "12px 16px", background: "var(--vsc-bg-sidebar)", border: "1px solid var(--vsc-border)", borderRadius: "var(--vsc-radius)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <strong style={{ color: "var(--vsc-fg-active)", fontSize: "0.85rem" }}>
-                {status === "polling" ? "Scan loopt..." : status === "done" ? "Scan afgerond" : "Scan gestart"}
-              </strong>
-              <Link href={`/audits/${auditId}`} style={{ color: "var(--vsc-fg-link)", fontSize: "0.85rem" }}>
-                Bekijk alle details →
-              </Link>
-            </div>
-            {Object.keys(layerStatuses).length > 0 && (
-              <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "2px 12px", fontSize: "0.8rem" }}>
-                {selectedLayers.map((layer) => (
-                  <div key={layer} style={{ display: "contents" }}>
-                    <span style={{ color: "var(--vsc-fg-secondary)" }}>{layer} {LAYER_LABELS[layer]}</span>
-                    <span className={`badge badge-status-${layerStatuses[layer] === "in wachtrij" ? "wachtend" : layerStatuses[layer] ?? "wachtend"}`}>
-                      {layerStatuses[layer] ?? "wachtend"}
-                    </span>
-                  </div>
-                ))}
-              </div>
+        {/* Progress + banners */}
+        {(pageStatus === "polling" || pageStatus === "done" || pageStatus === "timeout") && Object.keys(layerStates).length > 0 && (
+          <div style={{ marginTop: 24, maxWidth: 640 }}>
+            <ScanProgress
+              selectedLayers={selectedLayers}
+              layerStates={layerStates}
+              completedCount={completedCount}
+              elapsedSec={elapsedSec}
+              polling={pageStatus === "polling"}
+            />
+            {pageStatus === "done" && (
+              <CompletionBanner findingCount={allFindings.length} totalCount={selectedLayers.length} auditId={auditId} />
             )}
+            {pageStatus === "timeout" && <TimeoutBanner auditId={auditId} />}
           </div>
         )}
 
-        {errorMsg && (
-          <div className="login-error" role="alert" style={{ marginTop: 16, maxWidth: 600 }}>
-            {errorMsg}
+        {pageStatus === "error" && errorMsg && (
+          <div className="login-error" role="alert" style={{ marginTop: 16, maxWidth: 640 }}>
+            <strong>Er is iets misgegaan</strong>
+            <p style={{ marginTop: 4, fontSize: "0.82rem" }}>{errorMsg}</p>
+            <button type="button" onClick={resetScan} style={{ marginTop: 8, background: "none", border: "1px solid var(--vsc-error)", color: "var(--vsc-error)", cursor: "pointer", padding: "4px 12px", borderRadius: 3, fontSize: "0.8rem" }}>
+              Probeer opnieuw
+            </button>
           </div>
         )}
 
-        {result && (
-          <div style={{ marginTop: 24 }} aria-live="polite">
-            <h2 style={{ fontSize: "0.95rem", marginBottom: 12, color: "var(--vsc-fg-active)" }}>
-              Resultaten ({result.findings.length} bevindingen, {result.totalDurationMs}ms)
-            </h2>
-
-            {result.findings.length === 0 ? (
-              <p style={{ color: "var(--vsc-fg-secondary)" }}>Geen bevindingen gevonden.</p>
-            ) : (
-              <div className="table-container">
-                <table>
-                  <thead>
-                    <tr>
-                      <th scope="col">Type</th>
-                      <th scope="col">Impact</th>
-                      <th scope="col">WCAG</th>
-                      <th scope="col">Check</th>
-                      <th scope="col">Bericht</th>
-                      <th scope="col">Selector</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {result.findings.map((f, i) => (
-                      <tr key={i}>
-                        <td><span className={`badge badge-${f.type}`}>{f.type}</span></td>
-                        <td><span className={`badge badge-${f.impact}`}>{f.impact}</span></td>
-                        <td>{f.wcagCriteria.join(", ")}</td>
-                        <td>{f.check}</td>
-                        <td>{f.message}</td>
-                        <td><code style={{ fontSize: "0.7rem", color: "var(--vsc-fg-secondary)" }}>{f.selector}</code></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
+        <FindingsTable findings={allFindings} />
       </div>
     </>
   );

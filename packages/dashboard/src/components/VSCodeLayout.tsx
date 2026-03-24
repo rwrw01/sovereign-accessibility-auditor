@@ -23,7 +23,7 @@ export function VSCodeLayout({ children }: Props) {
     }
   }, [pathname, router, authDisabled]);
 
-  // Don't render shell on auth pages
+  // Auth pages render without the application shell
   if (pathname.startsWith("/auth")) {
     return <>{children}</>;
   }
@@ -34,21 +34,26 @@ export function VSCodeLayout({ children }: Props) {
   }
 
   return (
-    <div className="vsc-shell">
-      <div className="vsc-titlebar" role="banner">
-        <span className="vsc-titlebar-title">
-          Sovereign Accessibility Auditor
-        </span>
+    <>
+      {/* Skip-link: allows keyboard users to jump past navigation */}
+      <a className="skip-link" href="#main-content">Ga naar inhoud</a>
+
+      <div className="vsc-shell">
+        <div className="vsc-titlebar" role="banner">
+          <span className="vsc-titlebar-title">
+            Sovereign Accessibility Auditor
+          </span>
+        </div>
+
+        <ActivityBar currentPath={pathname} onLogout={handleLogout} />
+        <Sidebar currentPath={pathname} />
+
+        <main className="vsc-editor" id="main-content">
+          {children}
+        </main>
+
+        <StatusBar />
       </div>
-
-      <ActivityBar currentPath={pathname} onLogout={handleLogout} />
-      <Sidebar currentPath={pathname} />
-
-      <main className="vsc-editor" id="main-content">
-        {children}
-      </main>
-
-      <StatusBar />
-    </div>
+    </>
   );
 }

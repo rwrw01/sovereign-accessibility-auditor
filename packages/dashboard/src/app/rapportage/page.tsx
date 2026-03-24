@@ -1,78 +1,38 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Download, Eye } from "lucide-react";
+import { Download } from "lucide-react";
 import { apiClient } from "../../lib/api-client";
 
-interface Audit {
-  id: string;
-  naam: string;
-  doelUrls: string[] | string;
-  status: string;
-  aangemaaktOp: string;
-}
-
-interface Narrative {
-  watFout: string;
-  impactBlind: string;
-  impactDoof: string;
-  oplossing: string;
-}
-
+interface Audit { id: string; naam: string; doelUrls: string[] | string; status: string; aangemaaktOp: string; }
+interface Narrative { watFout: string; impactBlind: string; impactDoof: string; oplossing: string; }
 interface AggregatedFinding {
-  key: string;
-  wcagCriteria: string;
-  wcagLevel: string;
-  type: string;
-  impact: string;
-  count: number;
-  pagesAffected: number;
-  representativeSelector: string;
-  representativeMessage: string;
-  narrative: Narrative;
+  key: string; wcagCriteria: string; wcagLevel: string; type: string; impact: string;
+  count: number; pagesAffected: number; representativeSelector: string;
+  representativeMessage: string; narrative: Narrative;
 }
-
-interface ScorePage {
-  naam: string;
-  url: string;
-  errors: number;
-  warnings: number;
-}
-
+interface ScorePage { naam: string; url: string; errors: number; warnings: number; }
 interface ReportJson {
   input: { organisatie: string; websiteUrl: string; datum: string; standaard: string; tool: string; pages: string[] };
-  siteWideFindings: AggregatedFinding[];
-  pageSpecificFindings: AggregatedFinding[];
-  totalErrors: number;
-  totalWarnings: number;
-  totalNotices: number;
-  templateErrors: number;
-  pageErrors: number;
-  scorePerPage: ScorePage[];
+  siteWideFindings: AggregatedFinding[]; pageSpecificFindings: AggregatedFinding[];
+  totalErrors: number; totalWarnings: number; totalNotices: number;
+  templateErrors: number; pageErrors: number; scorePerPage: ScorePage[];
 }
 
-const IMPACT_CLASS: Record<string, string> = {
-  critical: "badge-critical",
-  serious: "badge-serious",
-  moderate: "badge-moderate",
-  minor: "badge-minor",
-};
-
+const IMPACT_CLASS: Record<string, string> = { critical: "badge-critical", serious: "badge-serious", moderate: "badge-moderate", minor: "badge-minor" };
 const CARD = { background: "var(--vsc-bg-sidebar)", border: "1px solid var(--vsc-border)", borderRadius: "var(--vsc-radius)" } as const;
 const FG_SEC = { color: "var(--vsc-fg-secondary)" } as const;
 const FG_ACT = { color: "var(--vsc-fg-active)" } as const;
-const SECTION_H2 = { fontSize: "0.9rem", ...FG_ACT, marginBottom: 10 } as const;
+const H2 = { fontSize: "0.9rem", ...FG_ACT, marginBottom: 10 } as const;
 
 function parseUrls(raw: string[] | string): string[] {
   if (Array.isArray(raw)) return raw;
   try { return JSON.parse(raw) as string[]; } catch { return []; }
 }
-
-function typeBadge(type: string): string {
-  if (type === "error") return "badge-error";
-  if (type === "warning") return "badge-warning";
-  return "badge-notice";
+function getHostname(url: string): string {
+  try { return new URL(url).hostname; } catch { return url; }
 }
+function typeBadge(t: string) { return t === "error" ? "badge-error" : t === "warning" ? "badge-warning" : "badge-notice"; }
 
 function FindingSection({ f }: { f: AggregatedFinding }) {
   return (
@@ -80,19 +40,21 @@ function FindingSection({ f }: { f: AggregatedFinding }) {
       <summary style={{ padding: "8px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, listStyle: "none", fontSize: "0.85rem" }}>
         <span className={`badge ${IMPACT_CLASS[f.impact.toLowerCase()] ?? "badge-notice"}`}>{f.impact}</span>
         <span style={{ ...FG_ACT, flex: 1 }}>{f.wcagCriteria}</span>
-        <span style={{ ...FG_SEC, fontSize: "0.75rem" }}>{f.count}× | {f.pagesAffected}p</span>
+        <span style={{ ...FG_SEC, fontSize: "0.75rem" }}>{f.count}× | {f.pagesAffected} pag.</span>
         <span className={`badge ${typeBadge(f.type)}`}>{f.wcagLevel}</span>
       </summary>
       <div style={{ padding: "10px 12px", borderTop: "1px solid var(--vsc-border)", fontSize: "0.82rem", lineHeight: 1.6 }}>
-        <p style={{ ...FG_SEC, marginBottom: 6 }}>
-          <strong style={FG_ACT}>Selector:</strong>{" "}
-          <code style={{ fontFamily: "var(--vsc-font-mono)", fontSize: "0.78rem" }}>{f.representativeSelector}</code>
-        </p>
+        {f.representativeSelector && (
+          <p style={{ ...FG_SEC, marginBottom: 6 }}>
+            <strong style={FG_ACT}>Element:</strong>{" "}
+            <code style={{ fontFamily: "var(--vsc-font-mono)", fontSize: "0.78rem" }}>{f.representativeSelector}</code>
+          </p>
+        )}
         <p style={{ ...FG_SEC, marginBottom: 10 }}><strong style={FG_ACT}>Melding:</strong> {f.representativeMessage}</p>
         <dl style={{ display: "grid", gridTemplateColumns: "max-content 1fr", gap: "4px 12px" }}>
           <dt style={{ ...FG_SEC, fontWeight: 600 }}>Wat is fout:</dt><dd style={FG_ACT}>{f.narrative.watFout}</dd>
-          <dt style={{ ...FG_SEC, fontWeight: 600 }}>Impact blind:</dt><dd style={FG_ACT}>{f.narrative.impactBlind}</dd>
-          <dt style={{ ...FG_SEC, fontWeight: 600 }}>Impact doof:</dt><dd style={FG_ACT}>{f.narrative.impactDoof}</dd>
+          <dt style={{ ...FG_SEC, fontWeight: 600 }}>Impact bij visuele beperking:</dt><dd style={FG_ACT}>{f.narrative.impactBlind}</dd>
+          <dt style={{ ...FG_SEC, fontWeight: 600 }}>Impact bij gehoorbeperking:</dt><dd style={FG_ACT}>{f.narrative.impactDoof}</dd>
           <dt style={{ ...FG_SEC, fontWeight: 600 }}>Oplossing:</dt><dd style={FG_ACT}>{f.narrative.oplossing}</dd>
         </dl>
       </div>
@@ -113,7 +75,7 @@ export default function RapportagePage() {
   useEffect(() => {
     apiClient("/api/v1/audits")
       .then(async (res) => {
-        if (!res.ok) return;
+        if (!res.ok) { setError("Kon audits niet laden"); return; }
         const data = (await res.json()) as Audit[];
         const done = data.filter((a) => a.status === "voltooid" || a.status === "actief");
         setAudits(done);
@@ -147,30 +109,26 @@ export default function RapportagePage() {
       const res = await apiClient(`/api/v1/audits/${selectedId}/report${qs}`);
       if (!res.ok) { setError("Download mislukt — controleer of de audit voltooid is"); return; }
       const blob = await res.blob();
-      const blobUrl = URL.createObjectURL(blob);
+      const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = blobUrl;
-      const naam = audits.find((x) => x.id === selectedId)?.naam ?? "rapport";
-      a.download = `saa-${naam.toLowerCase().replace(/\s+/g, "-")}-${new Date().toISOString().slice(0, 10)}.docx`;
+      a.href = url;
+      const audit = audits.find((x) => x.id === selectedId);
+      const urls = audit ? parseUrls(audit.doelUrls) : [];
+      const slug = urls.length > 0 && urls[0] ? getHostname(urls[0]).replace(/\./g, "-") : (audit?.naam ?? "rapport").toLowerCase().replace(/\s+/g, "-");
+      a.download = `saa-${slug}-${new Date().toISOString().slice(0, 10)}.docx`;
       a.click();
-      URL.revokeObjectURL(blobUrl);
-    } catch {
-      setError("Fout bij downloaden van rapport");
-    } finally {
-      setDownloading(false);
-    }
+      URL.revokeObjectURL(url);
+    } catch { setError("Fout bij downloaden van rapport"); }
+    finally { setDownloading(false); }
   }
 
-  const sitePct = report && report.totalErrors > 0
-    ? Math.round((report.templateErrors / report.totalErrors) * 100)
-    : 0;
+  const sitePct = report && report.totalErrors > 0 ? Math.round((report.templateErrors / report.totalErrors) * 100) : 0;
 
   return (
     <>
       <div className="vsc-tabbar">
         <span className="vsc-tab" aria-current="true">Rapportage</span>
       </div>
-
       <div className="vsc-editor-content">
         <h1 style={{ fontSize: "1.1rem", marginBottom: 16, ...FG_ACT }}>Rapport genereren</h1>
 
@@ -179,37 +137,32 @@ export default function RapportagePage() {
         <div style={{ maxWidth: 560 }}>
           <div className="form-group">
             <label htmlFor="audit-select">Audit selecteren</label>
-            {loadingAudits
-              ? <p style={FG_SEC} role="status">Audits laden…</p>
-              : audits.length === 0
-                ? <p style={FG_SEC}>Geen voltooide audits gevonden.</p>
-                : (
-                  <select id="audit-select" value={selectedId} onChange={(e) => setSelectedId(e.target.value)}>
-                    {audits.map((a) => {
-                      const urls = parseUrls(a.doelUrls);
-                      return (
-                        <option key={a.id} value={a.id}>
-                          {a.naam} — {urls[0] ?? "—"} ({new Date(a.aangemaaktOp).toLocaleDateString("nl-NL")})
-                        </option>
-                      );
-                    })}
-                  </select>
-                )}
+            {loadingAudits ? (
+              <p style={FG_SEC} role="status">Audits laden…</p>
+            ) : audits.length === 0 ? (
+              <p style={FG_SEC}>Geen voltooide audits gevonden.</p>
+            ) : (
+              <select id="audit-select" value={selectedId} onChange={(e) => setSelectedId(e.target.value)}>
+                {audits.map((a) => {
+                  const urls = parseUrls(a.doelUrls);
+                  const host = urls.length > 0 && urls[0] ? getHostname(urls[0]) : a.naam;
+                  return (
+                    <option key={a.id} value={a.id}>
+                      {host} — {new Date(a.aangemaaktOp).toLocaleDateString("nl-NL")}
+                    </option>
+                  );
+                })}
+              </select>
+            )}
           </div>
-
           <div className="form-group">
             <label htmlFor="org-input">Organisatienaam (optioneel)</label>
             <input id="org-input" type="text" placeholder="bijv. Gemeente Amsterdam" value={organisatie} onChange={(e) => setOrganisatie(e.target.value)} />
           </div>
-
-          <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
-            <button className="btn-primary" type="button" style={{ width: "auto", flex: 1 }} onClick={handleDownload} disabled={!selectedId || downloading} aria-busy={downloading}>
-              <Download size={14} aria-hidden="true" />
-              {downloading ? "Bezig…" : "Download DOCX rapport"}
-            </button>
-            <button className="btn-secondary" type="button" style={{ flex: 1 }} onClick={() => loadReport(selectedId)} disabled={!selectedId || loadingReport} aria-busy={loadingReport}>
-              <Eye size={14} aria-hidden="true" />
-              {loadingReport ? "Laden…" : "Ververs samenvatting"}
+          <div style={{ marginBottom: 24 }}>
+            <button className="btn-primary" type="button" onClick={handleDownload} disabled={!selectedId || downloading} aria-busy={downloading} style={{ width: "auto" }}>
+              <Download size={14} aria-hidden="true" style={{ marginRight: 6, verticalAlign: "middle" }} />
+              {downloading ? "Bezig met downloaden…" : "Download DOCX rapport"}
             </button>
           </div>
         </div>
@@ -233,7 +186,7 @@ export default function RapportagePage() {
             </section>
 
             <section aria-labelledby="score-head" style={{ marginBottom: 24 }}>
-              <h2 id="score-head" style={SECTION_H2}>Score per pagina</h2>
+              <h2 id="score-head" style={H2}>Score per pagina</h2>
               <div className="table-container">
                 <table>
                   <thead>
@@ -260,14 +213,14 @@ export default function RapportagePage() {
 
             {report.siteWideFindings.length > 0 && (
               <section aria-labelledby="sw-head" style={{ marginBottom: 24 }}>
-                <h2 id="sw-head" style={SECTION_H2}>Site-brede bevindingen ({report.siteWideFindings.length})</h2>
+                <h2 id="sw-head" style={H2}>Site-brede bevindingen ({report.siteWideFindings.length})</h2>
                 {report.siteWideFindings.map((f) => <FindingSection key={f.key} f={f} />)}
               </section>
             )}
 
             {report.pageSpecificFindings.length > 0 && (
               <section aria-labelledby="ps-head" style={{ marginBottom: 24 }}>
-                <h2 id="ps-head" style={SECTION_H2}>Pagina-specifieke bevindingen ({report.pageSpecificFindings.length})</h2>
+                <h2 id="ps-head" style={H2}>Pagina-specifieke bevindingen ({report.pageSpecificFindings.length})</h2>
                 {report.pageSpecificFindings.map((f) => <FindingSection key={f.key} f={f} />)}
               </section>
             )}

@@ -9,6 +9,7 @@
   --vsc-bg-statusbar: #007acc;
   --vsc-bg-tab-active: #1e1e1e;
   --vsc-bg-tab-inactive: #2d2d2d;
+  --vsc-bg-secondary: #2d2d2d; /* slightly lighter than sidebar, used by help page */
   --vsc-bg-input: #3c3c3c;
   --vsc-bg-hover: #2a2d2e;
   --vsc-bg-selection: #264f78;
@@ -487,10 +488,34 @@ tr:focus-within { background: var(--vsc-bg-hover); }
 .badge-moderate { background: var(--vsc-warning-bg); color: #e6c200; }
 .badge-minor { background: #1a3a5c; color: #6db3ff; }
 
-.badge-status-wachtend { background: #1a3a5c; color: #6db3ff; }
-.badge-status-actief { background: var(--vsc-warning-bg); color: #e6c200; }
-.badge-status-voltooid { background: #1b3a1b; color: #a3e09f; }
-.badge-status-mislukt { background: var(--vsc-error-bg); color: #ffa999; }
+/* Status badge base — fallback for unknown states */
+[class^="badge-status-"] {
+  background: #333333;
+  color: var(--vsc-fg-secondary);
+}
+
+.badge-status-wachtend {
+  background: #1a3a5c;
+  color: #6db3ff;
+}
+.badge-status-actief {
+  background: var(--vsc-warning-bg);
+  color: #e6c200;
+  animation: badge-pulse 1.8s ease-in-out infinite;
+}
+.badge-status-voltooid {
+  background: #1b3a1b;
+  color: #a3e09f;
+}
+.badge-status-mislukt {
+  background: var(--vsc-error-bg);
+  color: #ffa999;
+}
+
+@keyframes badge-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.65; }
+}
 
 /* ── Login ── */
 .login-container {
@@ -613,6 +638,30 @@ tr:focus-within { background: var(--vsc-bg-hover); }
   transition: width 0.3s ease;
 }
 
+/* ── Sidebar sections ── */
+.sidebar-section {
+  padding: var(--vsc-gap-sm) 0;
+  border-bottom: 1px solid var(--vsc-border);
+}
+.sidebar-section:last-child { border-bottom: none; }
+.sidebar-section--info {
+  padding: var(--vsc-gap-sm) var(--vsc-gap-lg);
+}
+.sidebar-section-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--vsc-fg-secondary);
+  padding: var(--vsc-gap-xs) var(--vsc-gap-lg);
+  margin-bottom: var(--vsc-gap-xs);
+}
+.sidebar-info-line {
+  font-size: 0.78rem;
+  color: var(--vsc-fg-muted);
+  line-height: 1.8;
+}
+
 /* ── Scan Layer Checkboxes ── */
 .layer-grid {
   display: grid;
@@ -621,17 +670,72 @@ tr:focus-within { background: var(--vsc-bg-hover); }
 }
 .layer-checkbox {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--vsc-gap-sm);
-  padding: var(--vsc-gap-xs) var(--vsc-gap-sm);
+  padding: var(--vsc-gap-sm);
+  border: 1px solid var(--vsc-border);
   border-radius: var(--vsc-radius);
   cursor: pointer;
   font-size: 0.85rem;
+  line-height: 1.3;
 }
-.layer-checkbox:hover { background: var(--vsc-bg-hover); }
+.layer-checkbox:hover { background: var(--vsc-bg-hover); border-color: var(--vsc-fg-secondary); }
 .layer-checkbox input[type="checkbox"] {
   accent-color: var(--vsc-bg-statusbar);
+  margin-top: 2px;
+  flex-shrink: 0;
 }
+.layer-checkbox-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.layer-checkbox-label {
+  font-weight: 600;
+  color: var(--vsc-fg);
+}
+.layer-checkbox-desc {
+  font-size: 0.75rem;
+  color: var(--vsc-fg-muted);
+}
+
+/* ── Scan Progress ── */
+.scan-progress {
+  margin: var(--vsc-gap-md) 0;
+}
+.scan-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: var(--vsc-gap-xs);
+  font-size: 0.85rem;
+}
+.scan-progress-label { color: var(--vsc-fg); }
+.scan-progress-pct { color: var(--vsc-fg-secondary); font-size: 0.75rem; }
+.scan-progress-bar {
+  width: 100%;
+  height: 8px;
+  background: var(--vsc-border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.scan-progress-bar-fill {
+  height: 100%;
+  background: var(--vsc-bg-statusbar);
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+.scan-layer-status {
+  display: flex;
+  align-items: center;
+  gap: var(--vsc-gap-sm);
+  padding: var(--vsc-gap-xs) 0;
+  font-size: 0.85rem;
+  color: var(--vsc-fg);
+}
+.scan-layer-status-icon { width: 16px; text-align: center; flex-shrink: 0; }
+.scan-layer-status-name { flex: 1; }
+.scan-layer-status-badge { flex-shrink: 0; }
 
 /* ── Log output (terminal-like) ── */
 .log-line {
