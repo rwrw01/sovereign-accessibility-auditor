@@ -6,6 +6,12 @@ import { runFocusTrapTest } from "./focus-trap.js";
 import { runFocusVisibleTest } from "./focus-visible.js";
 import { runHoverFocusTest } from "./hover-focus.js";
 import { runSkipLinkTest } from "./skip-link.js";
+import { runDraggingMovementsTest } from "./dragging-movements.js";
+import { runFocusNotObscuredTest } from "./focus-not-obscured.js";
+import { runPointerGesturesTest } from "./pointer-gestures.js";
+import { runConsistentBehaviorTest } from "./consistent-behavior.js";
+import { runTimingAdjustableTest } from "./timing-adjustable.js";
+import { runFormErrorHandlingTest } from "./form-error-handling.js";
 
 let sharedBrowser: Browser | null = null;
 
@@ -44,6 +50,12 @@ const TEST_RUNNERS: Record<BehavioralTest, TestRunner> = {
   "focus-visible": runFocusVisibleTest,
   "hover-focus": runHoverFocusTest,
   "skip-link": runSkipLinkTest,
+  "dragging-movements": runDraggingMovementsTest,
+  "focus-not-obscured": runFocusNotObscuredTest,
+  "pointer-gestures": runPointerGesturesTest,
+  "consistent-behavior": runConsistentBehaviorTest,
+  "timing-adjustable": runTimingAdjustableTest,
+  "form-error-handling": runFormErrorHandlingTest,
 };
 
 export async function runScan(payload: L3ScanJobPayload): Promise<L3ScanJobResult> {

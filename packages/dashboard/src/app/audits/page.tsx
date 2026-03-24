@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { apiClient } from "../../lib/api-client";
 
 interface Audit {
   id: string;
   naam: string;
-  doelUrls: string;
+  doelUrls: string[] | string;
   status: string;
   aangemaaktOp: string;
 }
@@ -41,9 +42,15 @@ export default function AuditsPage() {
         {loading ? (
           <p style={{ color: "var(--vsc-fg-secondary)" }} role="status">Laden...</p>
         ) : audits.length === 0 ? (
-          <p style={{ color: "var(--vsc-fg-secondary)" }}>
-            Nog geen audits. Start een scan via het dashboard of de scanpagina.
-          </p>
+          <div style={{ padding: "16px", background: "var(--vsc-bg-sidebar)", border: "1px solid var(--vsc-border)", borderRadius: "var(--vsc-radius)" }}>
+            <p style={{ color: "var(--vsc-fg-secondary)", marginBottom: 8 }}>
+              Nog geen audits gevonden.
+            </p>
+            <p style={{ color: "var(--vsc-fg-secondary)", fontSize: "0.8rem" }}>
+              Start een scan via het <Link href="/" style={{ color: "var(--vsc-fg-link)" }}>dashboard</Link> of
+              de <Link href="/scan" style={{ color: "var(--vsc-fg-link)" }}>scanpagina</Link>.
+            </p>
+          </div>
         ) : (
           <div className="table-container">
             <table>
@@ -57,11 +64,19 @@ export default function AuditsPage() {
               </thead>
               <tbody>
                 {audits.map((audit) => {
-                  let urls: string[] = [];
-                  try { urls = JSON.parse(audit.doelUrls) as string[]; } catch { /* empty */ }
+                  const urls = Array.isArray(audit.doelUrls)
+                    ? audit.doelUrls
+                    : (() => { try { return JSON.parse(audit.doelUrls as string) as string[]; } catch { return []; } })();
                   return (
-                    <tr key={audit.id}>
-                      <td style={{ fontWeight: 500 }}>{audit.naam}</td>
+                    <tr key={audit.id} style={{ cursor: "pointer" }}>
+                      <td style={{ fontWeight: 500 }}>
+                        <Link
+                          href={`/audits/${audit.id}`}
+                          style={{ color: "var(--vsc-link)", textDecoration: "none" }}
+                        >
+                          {audit.naam}
+                        </Link>
+                      </td>
                       <td><span className={`badge badge-status-${audit.status}`}>{audit.status}</span></td>
                       <td style={{ fontSize: "0.8rem", color: "var(--vsc-fg-secondary)" }}>
                         {urls.join(", ")}

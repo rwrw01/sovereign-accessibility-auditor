@@ -183,7 +183,13 @@ export type BehavioralTest =
   | "focus-trap"
   | "focus-visible"
   | "hover-focus"
-  | "skip-link";
+  | "skip-link"
+  | "dragging-movements"
+  | "focus-not-obscured"
+  | "pointer-gestures"
+  | "consistent-behavior"
+  | "timing-adjustable"
+  | "form-error-handling";
 
 export interface BehavioralFinding {
   test: BehavioralTest;

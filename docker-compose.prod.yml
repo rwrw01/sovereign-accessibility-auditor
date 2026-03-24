@@ -1,0 +1,640 @@
+# =============================================================================
+# docker-compose.prod.yml — Sovereign Accessibility Auditor (SAA)
+# Production stack for VPS-001 (athide.nl) — sovereign-stack architecture
+# =============================================================================
+#
+# PREREQUISITES — run once on the VPS before first `docker compose up`:
+#
+#   1. Create the external frontend network (once per VPS, shared with Traefik):
+#        docker network create net-fe-saa
+#
+#   2. Create the secrets directory and populate the env files:
+#        mkdir -p /opt/saa/secrets
+#        chmod 700 /opt/saa/secrets
+#
+#      /opt/saa/secrets/db.env — PostgreSQL credentials:
+#        POSTGRES_DB=saa
+#        POSTGRES_USER=saa
+#        POSTGRES_PASSWORD=<strong-random-password>
+#        POSTGRES_HOST_AUTH_METHOD=scram-sha-256
+#        POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256
+#
+#      /opt/saa/secrets/api.env — API runtime secrets:
+#        DATABASE_URL=postgresql://saa:<password>@postgres:5432/saa
+#        JWT_SECRET=<minimum-32-char-random-secret>
+#        REDIS_HOST=valkey
+#        REDIS_PORT=6379
+#
+#   3. Build and push images (or build on VPS):
+#        docker compose -f docker-compose.prod.yml build
+#
+#   NOTE: packages/api/Dockerfile and packages/dashboard/Dockerfile do NOT
+#   exist yet in the repository. They must be created before this file can be
+#   used. See the project README for the expected build context (monorepo root).
+#
+# NETWORK TOPOLOGY:
+#   Internet → Traefik → net-fe-saa → dashboard (port 3000)
+#                                   → api       (port 13001)
+#   dashboard → saa-internal → api
+#   api       → saa-db-net   → postgres
+#   api       → saa-redis-net → valkey
+#   scanner-l1..l6 → saa-redis-net → valkey
+#                  → saa-scanner-net → internet (target URLs)
+#   scanner-l7 → saa-redis-net + saa-scanner-net + saa-cognitive-net → ollama
+#   ollama     → saa-cognitive-net (NO internet)
+#
+# IMAGE DIGEST PINNING:
+#   Run `docker pull <image>` and replace the @sha256:... placeholders below
+#   with the output of `docker inspect --format='{{index .RepoDigests 0}}' <image>`.
+#   Re-pin after every intentional upgrade.
+# =============================================================================
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # dashboard — Next.js 15 frontend (publicly accessible via Traefik)
+  # ---------------------------------------------------------------------------
+  # NOTE: packages/dashboard/Dockerfile must exist before building.
+  dashboard:
+    build:
+      context: .
+      dockerfile: packages/dashboard/Dockerfile
+    restart: on-failure:5
+    networks:
+      - net-fe-saa
+      - saa-internal
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: https://audit.athide.nl/api
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,nodev,size=128m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          pids: 100
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/ >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: "net-fe-saa"
+      # Route: all traffic to audit.athide.nl (lower priority, catches everything not matched by saa-api)
+      traefik.http.routers.saa-dashboard.rule: "Host(`audit.athide.nl`)"
+      traefik.http.routers.saa-dashboard.entrypoints: "websecure"
+      traefik.http.routers.saa-dashboard.tls.certresolver: "letsencrypt"
+      traefik.http.routers.saa-dashboard.middlewares: "crowdsec@file,security-headers@file,rate-limit@file"
+      traefik.http.routers.saa-dashboard.priority: "1"
+      traefik.http.services.saa-dashboard.loadbalancer.server.port: "3000"
+
+  # ---------------------------------------------------------------------------
+  # api — Fastify 5 backend (routed via /api path prefix, port 13001)
+  # ---------------------------------------------------------------------------
+  # NOTE: packages/api/Dockerfile must exist before building.
+  api:
+    build:
+      context: .
+      dockerfile: packages/api/Dockerfile
+    restart: on-failure:5
+    networks:
+      - net-fe-saa
+      - saa-internal
+      - saa-db-net
+      - saa-redis-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    env_file:
+      - /opt/saa/secrets/api.env
+    environment:
+      NODE_ENV: production
+      PORT: "13001"
+      HOST: "0.0.0.0"
+      CORS_ORIGIN: "https://audit.athide.nl"
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,nodev,size=64m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          pids: 150
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:13001/healthz >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: "net-fe-saa"
+      # Route: /api path prefix — higher priority than dashboard catch-all
+      traefik.http.routers.saa-api.rule: "Host(`audit.athide.nl`) && PathPrefix(`/api`)"
+      traefik.http.routers.saa-api.entrypoints: "websecure"
+      traefik.http.routers.saa-api.tls.certresolver: "letsencrypt"
+      traefik.http.routers.saa-api.middlewares: "crowdsec@file,security-headers@file,rate-limit@file"
+      traefik.http.routers.saa-api.priority: "10"
+      traefik.http.services.saa-api.loadbalancer.server.port: "13001"
+
+  # ---------------------------------------------------------------------------
+  # postgres — PostgreSQL 16.8 (saa-db-net only, no internet access)
+  # ---------------------------------------------------------------------------
+  # Pin digest: docker inspect --format='{{index .RepoDigests 0}}' postgres:16.8-alpine
+  postgres:
+    image: postgres:16.8-alpine
+    # image: postgres@sha256:<digest>  # TODO: pin digest after first pull
+    restart: on-failure:5
+    networks:
+      - saa-db-net
+    volumes:
+      - saa-postgres-data:/var/lib/postgresql/data
+    env_file:
+      - /opt/saa/secrets/db.env
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,nodev,size=64m
+      - /run/postgresql:noexec,nosuid,nodev,size=16m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_READ_SEARCH
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          pids: 200
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # valkey — Valkey 8.1 queue backend (saa-redis-net only)
+  # ---------------------------------------------------------------------------
+  # Pin digest: docker inspect --format='{{index .RepoDigests 0}}' valkey/valkey:8.1-alpine
+  valkey:
+    image: valkey/valkey:8.1-alpine
+    # image: valkey/valkey@sha256:<digest>  # TODO: pin digest after first pull
+    restart: on-failure:5
+    networks:
+      - saa-redis-net
+    volumes:
+      - saa-valkey-data:/data
+    command:
+      - valkey-server
+      - --maxmemory
+      - 256mb
+      - --maxmemory-policy
+      - noeviction
+      - --save
+      - ""
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,nodev,size=16m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          pids: 200
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # scanner-l1 — L1 Multi-engine (axe-core + IBM accessibility-checker-engine)
+  # ---------------------------------------------------------------------------
+  scanner-l1:
+    build:
+      context: .
+      dockerfile: packages/scanners/multi-engine/Dockerfile
+    restart: on-failure:5
+    networks:
+      - saa-redis-net
+      - saa-scanner-net
+    depends_on:
+      valkey:
+        condition: service_healthy
+    environment:
+      REDIS_HOST: valkey
+      REDIS_PORT: "6379"
+      SCAN_CONCURRENCY: "2"
+      NODE_ENV: production
+    read_only: true
+    tmpfs:
+      - /tmp/scanner:noexec,nosuid,nodev,size=512m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          pids: 200
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "node", "-e", "process.exit(0)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # scanner-l2 — L2 Visual regression (reflow, zoom, text-spacing)
+  # ---------------------------------------------------------------------------
+  scanner-l2:
+    build:
+      context: .
+      dockerfile: packages/scanners/visual-regression/Dockerfile
+    restart: on-failure:5
+    networks:
+      - saa-redis-net
+      - saa-scanner-net
+    depends_on:
+      valkey:
+        condition: service_healthy
+    environment:
+      REDIS_HOST: valkey
+      REDIS_PORT: "6379"
+      SCAN_CONCURRENCY: "2"
+      NODE_ENV: production
+    read_only: true
+    tmpfs:
+      - /tmp/scanner:noexec,nosuid,nodev,size=512m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          pids: 200
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "node", "-e", "process.exit(0)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # scanner-l3 — L3 Behavioral (keyboard navigation, focus order, skip links)
+  # ---------------------------------------------------------------------------
+  scanner-l3:
+    build:
+      context: .
+      dockerfile: packages/scanners/behavioral/Dockerfile
+    restart: on-failure:5
+    networks:
+      - saa-redis-net
+      - saa-scanner-net
+    depends_on:
+      valkey:
+        condition: service_healthy
+    environment:
+      REDIS_HOST: valkey
+      REDIS_PORT: "6379"
+      SCAN_CONCURRENCY: "2"
+      NODE_ENV: production
+    read_only: true
+    tmpfs:
+      - /tmp/scanner:noexec,nosuid,nodev,size=512m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          pids: 200
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "node", "-e", "process.exit(0)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # scanner-l4 — L4 A11y tree diff (accessibility tree structural analysis)
+  # ---------------------------------------------------------------------------
+  scanner-l4:
+    build:
+      context: .
+      dockerfile: packages/scanners/a11y-tree/Dockerfile
+    restart: on-failure:5
+    networks:
+      - saa-redis-net
+      - saa-scanner-net
+    depends_on:
+      valkey:
+        condition: service_healthy
+    environment:
+      REDIS_HOST: valkey
+      REDIS_PORT: "6379"
+      SCAN_CONCURRENCY: "2"
+      NODE_ENV: production
+    read_only: true
+    tmpfs:
+      - /tmp/scanner:noexec,nosuid,nodev,size=512m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          pids: 200
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "node", "-e", "process.exit(0)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # scanner-l5 — L5 Touch targets (minimum 44x44px, spacing validation)
+  # ---------------------------------------------------------------------------
+  scanner-l5:
+    build:
+      context: .
+      dockerfile: packages/scanners/touch-targets/Dockerfile
+    restart: on-failure:5
+    networks:
+      - saa-redis-net
+      - saa-scanner-net
+    depends_on:
+      valkey:
+        condition: service_healthy
+    environment:
+      REDIS_HOST: valkey
+      REDIS_PORT: "6379"
+      SCAN_CONCURRENCY: "2"
+      NODE_ENV: production
+    read_only: true
+    tmpfs:
+      - /tmp/scanner:noexec,nosuid,nodev,size=512m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          pids: 200
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "node", "-e", "process.exit(0)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # scanner-l6 — L6 Screenreader simulation (NVDA/JAWS output modelling)
+  # ---------------------------------------------------------------------------
+  scanner-l6:
+    build:
+      context: .
+      dockerfile: packages/scanners/screenreader/Dockerfile
+    restart: on-failure:5
+    networks:
+      - saa-redis-net
+      - saa-scanner-net
+    depends_on:
+      valkey:
+        condition: service_healthy
+    environment:
+      REDIS_HOST: valkey
+      REDIS_PORT: "6379"
+      SCAN_CONCURRENCY: "2"
+      NODE_ENV: production
+    read_only: true
+    tmpfs:
+      - /tmp/scanner:noexec,nosuid,nodev,size=512m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          pids: 200
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "node", "-e", "process.exit(0)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # scanner-l7 — L7 Cognitive (Ollama + Gemma 3 4B, requires saa-cognitive-net)
+  # ---------------------------------------------------------------------------
+  scanner-l7:
+    build:
+      context: .
+      dockerfile: packages/scanners/cognitive/Dockerfile
+    restart: on-failure:5
+    networks:
+      - saa-redis-net
+      - saa-scanner-net
+      - saa-cognitive-net
+    depends_on:
+      valkey:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    environment:
+      REDIS_HOST: valkey
+      REDIS_PORT: "6379"
+      SCAN_CONCURRENCY: "2"
+      OLLAMA_URL: "http://ollama:11434"
+      NODE_ENV: production
+    read_only: true
+    tmpfs:
+      - /tmp/scanner:noexec,nosuid,nodev,size=512m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          pids: 200
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "node", "-e", "process.exit(0)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # ollama — LLM inference (Gemma 3 4B, saa-cognitive-net only, NO internet)
+  # ---------------------------------------------------------------------------
+  # Model must be pre-loaded: docker exec saa-ollama ollama pull gemma3:4b
+  # Pin tag: ollama/ollama:0.6.2 — SHA digest available only for linux/amd64
+  ollama:
+    image: ollama/ollama:0.6.2
+    restart: on-failure:5
+    networks:
+      - saa-cognitive-net
+    volumes:
+      - saa-ollama-data:/root/.ollama
+    environment:
+      OLLAMA_NUM_PARALLEL: "1"
+      OLLAMA_HOST: "0.0.0.0"
+    # read_only not applicable: ollama writes model weights to /root/.ollama volume
+    tmpfs:
+      - /tmp:noexec,nosuid,nodev,size=256m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          memory: 8g
+          pids: 200
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:11434/api/tags >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+# =============================================================================
+# NETWORKS
+# =============================================================================
+networks:
+  # External: pre-created on VPS, shared with Traefik
+  net-fe-saa:
+    external: true
+
+  # Dashboard <-> API (internal, no host exposure)
+  saa-internal:
+    driver: bridge
+    internal: true
+
+  # API <-> PostgreSQL only (internal)
+  saa-db-net:
+    driver: bridge
+    internal: true
+
+  # API + Scanners <-> Valkey (internal)
+  saa-redis-net:
+    driver: bridge
+    internal: true
+
+  # Scanners -> target URLs on the internet (NOT internal — outbound required)
+  saa-scanner-net:
+    driver: bridge
+
+  # Scanner-L7 <-> Ollama only (internal, no internet for LLM)
+  saa-cognitive-net:
+    driver: bridge
+    internal: true
+
+# =============================================================================
+# VOLUMES
+# All prefixed saa- to avoid conflicts with other stacks on the VPS
+# =============================================================================
+volumes:
+  saa-postgres-data:
+    driver: local
+  saa-valkey-data:
+    driver: local
+  saa-ollama-data:
+    driver: local

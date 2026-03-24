@@ -28,11 +28,27 @@ function setUser(request: FastifyRequest, payload: TokenPayload): void {
 }
 
 export function registerAuthHook(server: FastifyInstance): void {
+  const authDisabled = process.env["DISABLE_AUTH"] === "true";
+  if (authDisabled) {
+    server.log.info("Auth disabled — all requests use local admin user");
+  }
+
   server.addHook(
     "onRequest",
     async (request: FastifyRequest, reply: FastifyReply) => {
       const path = request.url.split("?")[0] ?? request.url;
       if (PUBLIC_ROUTES.has(path)) {
+        return;
+      }
+      if (authDisabled) {
+        setUser(request, {
+          sub: "00000000-0000-0000-0000-000000000000",
+          email: "local@dev",
+          rol: "admin",
+          gemeenteId: "local",
+          iat: Math.floor(Date.now() / 1000),
+          exp: Math.floor(Date.now() / 1000) + 86400,
+        });
         return;
       }
 

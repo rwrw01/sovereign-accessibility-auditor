@@ -267,7 +267,8 @@ body {
   min-width: 0;
 }
 .vsc-tab:hover { color: var(--vsc-fg); }
-.vsc-tab[aria-selected="true"] {
+.vsc-tab[aria-selected="true"],
+.vsc-tab[aria-current="true"] {
   background: var(--vsc-bg-tab-active);
   color: var(--vsc-fg-active);
   border-bottom: 1px solid var(--vsc-bg-tab-active);
@@ -324,7 +325,8 @@ body {
   margin-bottom: -1px;
 }
 .vsc-panel-tab:hover { color: var(--vsc-fg); }
-.vsc-panel-tab[aria-selected="true"] {
+.vsc-panel-tab[aria-selected="true"],
+.vsc-panel-tab[aria-current="true"] {
   color: var(--vsc-fg-active);
   border-bottom-color: var(--vsc-border-active);
 }

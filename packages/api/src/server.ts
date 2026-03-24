@@ -111,7 +111,7 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
 
 const start = async (): Promise<void> => {
   const host = process.env["HOST"] ?? "127.0.0.1";
-  const port = Number(process.env["PORT"] ?? 3001);
+  const port = Number(process.env["PORT"] ?? 13001);
 
   await server.listen({ host, port });
 };

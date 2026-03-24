@@ -26,20 +26,21 @@ test.describe("Authenticatie — Happy flow", () => {
     await expect(password).toHaveAttribute("autocomplete", "current-password");
   });
 
-  test("Onbeveiligde pagina redirect naar login", async ({ page }) => {
+  test("Met auth disabled laadt dashboard zonder login", async ({ page }) => {
+    // With DISABLE_AUTH=true, visiting / should show dashboard directly
     await page.goto("/");
-    await page.waitForURL(/\/auth\/login/, { timeout: 10_000 });
-    await expect(page.getByLabel("E-mailadres")).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Sovereign Accessibility Auditor" }),
+    ).toBeVisible({ timeout: 10_000 });
   });
 
-  test("Succesvolle login leidt naar dashboard", async ({ page }) => {
+  test("Login pagina redirects naar dashboard als auth disabled", async ({ page }) => {
+    // With DISABLE_AUTH=true, /auth/login checkAuth() returns true → redirect
     await page.goto("/auth/login");
-    await page.getByLabel("E-mailadres").fill("admin@saa.local");
-    await page.getByLabel("Wachtwoord").fill("Admin2026!Secure");
-    await page.getByRole("button", { name: "Inloggen" }).click();
-
     await page.waitForURL("/", { timeout: 15_000 });
-    await expect(page.getByRole("heading", { name: "Sovereign Accessibility Auditor" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Sovereign Accessibility Auditor" }),
+    ).toBeVisible();
   });
 });
 

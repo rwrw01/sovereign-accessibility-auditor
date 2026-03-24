@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { db } from "../db/connection.js";
-import { audits } from "../db/schema.js";
+import { audits, scans, issues } from "../db/schema.js";
 import { getUser } from "../middleware/auth.js";
 
 const quickScanSchema = z.object({
@@ -30,7 +30,7 @@ export async function quickScanRoutes(server: FastifyInstance): Promise<void> {
       naam: `Snelle scan — ${new URL(url).hostname}`,
       doelUrls: JSON.stringify([url]),
       status: "actief",
-      aangemaaktDoor: authUser.sub,
+      aangemaaktDoor: authUser.sub === "00000000-0000-0000-0000-000000000000" ? null : authUser.sub,
     }).returning();
 
     const audit = rows[0]!;
@@ -58,5 +58,44 @@ export async function quickScanRoutes(server: FastifyInstance): Promise<void> {
       .limit(50);
 
     return reply.send(rows);
+  });
+
+  // Get single audit with scans and issues
+  server.get("/api/v1/audits/:id", async (request, reply) => {
+    const authUser = getUser(request);
+    if (!authUser) {
+      return reply.code(401).send({ error: "Authenticatie vereist" });
+    }
+
+    const { id } = request.params as { id: string };
+    const { eq, and } = await import("drizzle-orm");
+
+    const auditRows = await db
+      .select()
+      .from(audits)
+      .where(and(eq(audits.id, id), eq(audits.gemeenteId, authUser.gemeenteId)))
+      .limit(1);
+
+    if (auditRows.length === 0) {
+      return reply.code(404).send({ error: "Audit niet gevonden" });
+    }
+
+    const audit = auditRows[0]!;
+
+    const scanRows = await db
+      .select()
+      .from(scans)
+      .where(eq(scans.auditId, id));
+
+    const issueRows = await db
+      .select()
+      .from(issues)
+      .where(eq(issues.auditId, id));
+
+    return reply.send({
+      ...audit,
+      scans: scanRows,
+      issues: issueRows,
+    });
   });
 }

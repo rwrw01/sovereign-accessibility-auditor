@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Play, FileText, Settings } from "lucide-react";
 import { apiClient } from "../lib/api-client";
 
@@ -252,6 +253,16 @@ export default function DashboardPage() {
         ) : (
           /* Scan results view */
           <div aria-live="polite" aria-atomic="false">
+            {auditId && (
+              <div style={{ marginBottom: 16, padding: "8px 12px", background: "var(--vsc-bg-sidebar)", border: "1px solid var(--vsc-border)", borderRadius: "var(--vsc-radius)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: "0.85rem" }}>
+                  {scanning ? "Scan loopt..." : "Scan afgerond"}
+                </span>
+                <Link href={`/audits/${auditId}`} style={{ color: "var(--vsc-fg-link)", fontSize: "0.85rem" }}>
+                  Bekijk audit details →
+                </Link>
+              </div>
+            )}
             <div className="stats-grid" role="region" aria-label="Scan statistieken">
               <div className="stat-card">
                 <div className="stat-value">{totalFindings}</div>

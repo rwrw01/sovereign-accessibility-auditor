@@ -15,11 +15,13 @@ export function VSCodeLayout({ children }: Props) {
   const router = useRouter();
   const pathname = usePathname();
 
+  const authDisabled = process.env["NEXT_PUBLIC_DISABLE_AUTH"] === "true";
+
   useEffect(() => {
-    if (!pathname.startsWith("/auth")) {
+    if (!authDisabled && !pathname.startsWith("/auth")) {
       checkAuth().then((ok) => { if (!ok) router.replace("/auth/login"); });
     }
-  }, [pathname, router]);
+  }, [pathname, router, authDisabled]);
 
   // Don't render shell on auth pages
   if (pathname.startsWith("/auth")) {

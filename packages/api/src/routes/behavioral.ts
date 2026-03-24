@@ -20,6 +20,12 @@ const ALL_TESTS: BehavioralTest[] = [
   "focus-visible",
   "hover-focus",
   "skip-link",
+  "dragging-movements",
+  "focus-not-obscured",
+  "pointer-gestures",
+  "consistent-behavior",
+  "timing-adjustable",
+  "form-error-handling",
 ];
 
 const l3ScanRequestSchema = z.object({
@@ -33,7 +39,7 @@ const l3ScanRequestSchema = z.object({
     .optional()
     .default({ name: "desktop", w: 1280, h: 1024 }),
   tests: z
-    .array(z.enum(["keyboard-nav", "focus-trap", "focus-visible", "hover-focus", "skip-link"]))
+    .array(z.enum(["keyboard-nav", "focus-trap", "focus-visible", "hover-focus", "skip-link", "dragging-movements", "focus-not-obscured", "pointer-gestures", "consistent-behavior", "timing-adjustable", "form-error-handling"]))
     .optional()
     .default(ALL_TESTS),
 });

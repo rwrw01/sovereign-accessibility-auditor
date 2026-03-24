@@ -156,6 +156,17 @@ export async function authRoutes(server: FastifyInstance): Promise<void> {
       return reply.code(401).send({ error: "Authenticatie vereist" });
     }
 
+    // When auth is disabled, return dummy user info directly
+    if (authUser.sub === "00000000-0000-0000-0000-000000000000") {
+      return reply.send({
+        id: authUser.sub,
+        email: authUser.email,
+        naam: "Lokale beheerder",
+        rol: authUser.rol,
+        gemeenteId: authUser.gemeenteId,
+      });
+    }
+
     const user = await getUserById(authUser.sub);
     if (!user) {
       return reply.code(404).send({ error: "Gebruiker niet gevonden" });
