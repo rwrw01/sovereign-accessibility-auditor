@@ -1,0 +1,6 @@
+# Compiled TypeScript artifacts — never commit these
+drizzle.config.js
+drizzle.config.js.map
+drizzle.config.d.ts
+drizzle.config.d.ts.map
+*.js.map

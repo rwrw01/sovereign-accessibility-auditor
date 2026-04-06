@@ -2,7 +2,7 @@ import postgres from "postgres";
 
 console.log("Testing DB on port 15432...");
 
-const sql = postgres("postgresql://saa:saa_dev_password@127.0.0.1:15432/saa", {
+const sql = postgres(process.env["DATABASE_URL"] ?? "postgresql://saa@127.0.0.1:15432/saa", {
   connect_timeout: 5,
   idle_timeout: 5,
 });
